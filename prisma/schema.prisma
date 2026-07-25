@@ -1,0 +1,230 @@
+// Little Dreamer — data model
+//
+// STATUS: INERT. Scaffolded in Phase 0 so the app phase does not start from
+// scratch. No migration has been run and nothing in the landing page reads it.
+//
+// Prisma 7: the generator is `prisma-client` (not `prisma-client-js`), the
+// datasource carries no `url` (it lives in prisma.config.ts), and the runtime
+// connects through @prisma/adapter-neon rather than a raw connection string.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── identity ────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  children Child[]
+  jobs     Job[]
+  orders   Order[]
+
+  @@index([email])
+}
+
+model Child {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name   String
+  age    Int
+  gender String // carried verbatim; pronouns are resolved, never inferred downstream
+
+  // R2 keys for source photos. Never base64, never the images themselves.
+  photoKeys String[]
+
+  // Explicit retention: the landing page promises 30-day deletion, so the
+  // model has to be able to prove it.
+  photosDeleteAfter DateTime?
+  photosDeletedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jobs Job[]
+
+  @@index([userId])
+}
+
+// ─── generation ──────────────────────────────────────────────────────────────
+
+enum JobStatus {
+  QUEUED
+  ANALYZING
+  PLANNING
+  STORY_READY
+  ILLUSTRATING
+  ASSEMBLING
+  READY
+  FAILED
+}
+
+/// One generation run. Mirrors the Make scenario's job state; Neon is the
+/// source of truth and Make only reports into it.
+model Job {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  childId String
+  child   Child  @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  status JobStatus @default(QUEUED)
+
+  /// Drives adventure selection so two runs of the same theme differ.
+  seed Int
+
+  // The nine inputs from the web app, stored verbatim for reproducibility.
+  recommendedAgeGroup String
+  audiencePreference  String[]
+  storyWorld          String
+  storyDirection      String
+  possibleAdventures  String[]
+  ending              String
+  storyTheme          String
+  emotionalTheme      String[]
+
+  // Resolved once at intake so no downstream step re-infers them.
+  pronouns     String
+  ageBand      String
+  simplifyPlot Boolean @default(false)
+
+  failedStage  String?
+  failedReason String?
+  retryable    Boolean @default(true)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  book     Book?
+  beatPlan BeatPlan?
+
+  @@index([userId])
+  @@index([status])
+}
+
+/// The selected + ordered subset of possibleAdventures. Persisted so a re-run
+/// can deliberately avoid the previous selection.
+model BeatPlan {
+  id    String @id @default(cuid())
+  jobId String @unique
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  selectedAdventures String[]
+  beats              Json
+  characterSheet     String? @db.Text
+
+  createdAt DateTime @default(now())
+}
+
+// ─── output ──────────────────────────────────────────────────────────────────
+
+model Book {
+  id    String @id @default(cuid())
+  jobId String @unique
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  title      String
+  dedication String? @db.Text
+
+  coverKey String?
+  pdfKey   String?
+
+  pageCount Int     @default(0)
+  isPreview Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pages  Page[]
+  assets Asset[]
+  orders Order[]
+}
+
+model Page {
+  id     String @id @default(cuid())
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  /// "intro" | "ch1" … "ch5"
+  section String
+  index   Int
+
+  text               String  @db.Text
+  illustrationPrompt String? @db.Text
+  imageKey           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([bookId, section])
+  @@index([bookId, index])
+}
+
+enum AssetKind {
+  SOURCE_PHOTO
+  CHARACTER_REF
+  PAGE_IMAGE
+  COVER
+  PDF
+}
+
+/// Every binary in R2, tracked so retention and cleanup are enforceable.
+model Asset {
+  id     String  @id @default(cuid())
+  bookId String?
+  book   Book?   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  kind        AssetKind
+  key         String    @unique
+  contentType String
+  bytes       Int?
+
+  createdAt DateTime  @default(now())
+  deleteAt  DateTime?
+  deletedAt DateTime?
+
+  @@index([bookId])
+  @@index([kind])
+}
+
+// ─── commerce ────────────────────────────────────────────────────────────────
+
+enum OrderStatus {
+  PENDING
+  PAID
+  REFUNDED
+  FAILED
+}
+
+model Order {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id])
+
+  tier        String
+  amountMinor Int
+  currency    String      @default("INR")
+  status      OrderStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
