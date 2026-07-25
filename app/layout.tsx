@@ -2,13 +2,13 @@ import type { Metadata } from "next"
 import { Fraunces, Inter } from "next/font/google"
 
 import "./globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
+import { brand, hero } from "@/content/copy"
 
 /**
  * Fraunces for display — warm and slightly literary, carries "storybook"
  * without tipping into twee. Inter for body. Both variable, both subset,
- * both `display: swap` so text is never invisible during load.
+ * both `display: swap` so text is never invisible while fonts load.
  */
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -24,11 +24,24 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "Little Dreamer — A Story as Unique as Your Child",
-  description:
-    "Upload one photo. Pick an adventure. Get an illustrated storybook where the hero actually looks like your child.",
+  title: {
+    default: `${brand.name} — ${brand.tagline}`,
+    template: `%s — ${brand.name}`,
+  },
+  description: hero.subhead,
 }
 
+/**
+ * Root layout — deliberately provider-free.
+ *
+ * next-themes was removed: v1 ships light-only, `:root` already IS the light
+ * palette, and a theme provider running `forcedTheme="light"` is client-side
+ * weight that changes nothing on screen. It comes back the day a real dark
+ * palette exists.
+ *
+ * QueryProvider and Toaster are likewise not mounted — nothing here fetches
+ * server state or raises a toast. Both remain in the repo for the app phase.
+ */
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -37,11 +50,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      suppressHydrationWarning
       className={cn(fraunces.variable, inter.variable, "font-sans antialiased")}
     >
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <a
+          href="#main"
+          className="sr-only rounded-md bg-primary px-4 py-2 text-primary-foreground focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-100"
+        >
+          Skip to content
+        </a>
+        {children}
       </body>
     </html>
   )

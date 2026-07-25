@@ -1,5 +1,48 @@
 # Phase 1 — Design System & Motion Primitives
 
+> **STATUS: COMPLETE — 2026-07-25.** All 12 checkpoints pass, verified in a
+> real browser via `scripts/verify-phase-1.mjs` (13 automated assertions).
+>
+> **Measured contrast — the headline finding:**
+> `--primary` is **lavender-600**, not the raw brand `#8B5CF6`. White on raw
+> lavender measures **4.23:1** and FAILS WCAG AA for body text; lavender-600
+> measures 5.41:1. A primary button in the literal brand colour would have
+> been inaccessible.
+>
+> | pair | measured | verdict |
+> |---|---|---|
+> | ink `#2A2118` on cream | 15.12:1 | body ✓ |
+> | white on raw lavender `#8B5CF6` | 4.23:1 | body ✗ |
+> | white on lavender-600 | 5.41:1 | body ✓ |
+> | raw sky on cream | 2.43:1 | fails even large ✗ |
+> | raw gold on cream | 1.60:1 | fails even large ✗ |
+> | raw mint on cream | 1.46:1 | fails even large ✗ |
+>
+> Raw sky, gold and mint are **decorative fills only** — the -700 steps are
+> the first that carry text. C1.4 satisfied.
+>
+> **Two bugs the gate caught that would otherwise have shipped:**
+> 1. `useGSAP` reverts only on **unmount** by default. Because the
+>    reduced-motion snapshot is `false` during hydration and flips after,
+>    ScrollTriggers created in the first render survived — "reduce motion"
+>    left live scrub listeners attached. Fixed with `revertOnUpdate: true`
+>    in both `ScrollScene` and `Parallax`.
+> 2. The contrast table measured **1.00:1 for everything**: canvas cannot
+>    parse `var()`, so `fillStyle` silently kept its previous value. Fixing
+>    that exposed a second layer — Chrome does not normalise `oklch()` back
+>    to `#rrggbb`, so the string read returned null. Now resolves through
+>    the cascade, then rasterises and reads the pixel.
+>
+> **Other deviations:**
+> - Route is `app/dev/tokens`, **not** `app/_dev/tokens` — underscore-prefixed
+>   folders are private in the App Router and would never have routed.
+> - The scaffold's `ThemeProvider` bound a global `d` hotkey for dark mode;
+>   removed (inert under `forcedTheme`, and a poor citizen on a landing page).
+> - `playwright` added as a devDependency so phase gates are reproducible
+>   rather than one-off. P7 needs it anyway.
+> - Contrast is measured **live from computed styles** in the browser, so the
+>   page cannot go stale when a token changes.
+
 **Goal:** Every colour, type step, spacing unit, motion primitive and asset
 placeholder exists and is provably correct — before a single page section is built.
 

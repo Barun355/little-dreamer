@@ -132,6 +132,10 @@
 :root {
   --radius: 1rem;
 
+  /* Sticky nav height. Consumed by scroll-margin-top so anchor targets are
+     never hidden behind the header, and by the hero's top padding. */
+  --nav-height: 4.5rem;
+
   --background: oklch(0.9851 0.0102 67.71); /* warm cream  #FFF9F3 */
   --foreground: oklch(0.2554 0.0212 66.64); /* warm ink    #2A2118  15.12:1 */
 
@@ -223,15 +227,65 @@
     CSS-level reduced-motion backstop. The JS gate in hooks/use-reduced-motion
     is the primary mechanism for Motion / GSAP / Lottie; this catches
     everything else, including third-party CSS animation.
+
+    animation-delay is reset too: zeroing only the duration still leaves
+    staggered content invisible for the length of its delay.
   */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
     *::after {
       animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+  }
+}
+
+/*
+  Above-the-fold motion, in CSS.
+
+  The hero's word stagger and ambient drift are decorative entrance effects
+  on content that renders immediately. Pulling a ~50kb animation library into
+  the critical path to express them is poor value, and it forced the headline
+  to be a client component. As plain CSS they cost nothing, run off the main
+  thread, and let the hero stay a Server Component.
+
+  Motion and GSAP remain the vocabulary for below-the-fold work, where their
+  weight is amortised and can be loaded lazily.
+*/
+@layer utilities {
+  @keyframes ld-rise {
+    from {
+      opacity: 0;
+      transform: translateY(0.4em);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes ld-drift {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(calc(var(--drift-distance, 10px) * -1));
+    }
+  }
+
+  .animate-rise {
+    animation: ld-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--delay, 0ms);
+  }
+
+  .animate-drift {
+    animation: ld-drift var(--drift-duration, 6s) ease-in-out infinite;
+    animation-delay: var(--delay, 0ms);
+    will-change: transform;
   }
 }
