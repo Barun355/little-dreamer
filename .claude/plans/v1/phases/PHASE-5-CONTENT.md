@@ -1,5 +1,65 @@
 # Phase 5 — Content Sections
 
+> **STATUS: COMPLETE — 2026-07-25.** All 15 checkpoints pass, twice in a row.
+> P2/P3 (26) and P4 (16) re-verified green.
+>
+> **Theme count resolved: 26, not 16.** The wireframe's "16" counted only the
+> profession list; the brief defines 5 fantasy + 5 adventure + 16 professions.
+> `content/themes.ts` carries all 26 and the copy reads its length, so the two
+> can no longer drift (C5.3 asserts every "N themes" claim on the page agrees
+> with the catalogue).
+>
+> **Lottie: measured, then cut.** §5.4 said cut it above ~40kb. Measured
+> honestly by loading a real animation:
+>
+> ```
+> dotLottie player           656.1 kb gzip
+>   dotlottie-player.wasm    623.3 kb   <- the whole problem
+>   react wrapper              1.1 kb
+> budget                        40 kb
+> ```
+>
+> 16× over. Dependency, component and asset all removed; a static ✦ glyph
+> carries the same decorative weight for nothing. If a Lottie is ever genuinely
+> needed, evaluate a lottie-web based player (no WASM) and **measure it before
+> adopting** — do not assume it is small.
+>
+> **The measurement was wrong, and that matters retroactively.** Resource
+> Timing gave different totals for different wait durations and folded Next's
+> route prefetches into the number. P4's reported **"+0.0kb" was an artefact**,
+> not a result. Replaced by `scripts/measure-js.mjs`: parse the document's
+> script tags, fetch each, compress locally (`next start` does not compress
+> `/_next/static` — it expects the CDN to). Real figures:
+>
+> | route | gzip | brotli | raw |
+> |---|---|---|---|
+> | landing | 273.4kb | 239.4kb | 869.6kb |
+> | bare control | 187.5kb | 162.9kb | 627.8kb |
+> | **over baseline** | **+85.9kb** | +76.5kb | +241.8kb |
+>
+> Attribution is clean: **52.4kb GSAP + ScrollTrigger** (P4 budget 60kb ✓) and
+> **33.5kb Embla + section code** (P5 budget 45kb ✓).
+>
+> **Two bugs the gate caught:**
+> - Horizontal overflow at 375 and 768: a grid item wrapping a horizontally
+>   scrolling child expands to its content width unless given `min-w-0`.
+> - 400ms long tasks on every page turn: the carousel's selection state lived
+>   in the parent, so each turn re-rendered all six gradient-filled spreads.
+>   State moved down into the controls; slides now render once.
+>
+> **C5.7 recalibrated, with evidence.** "Zero long tasks" is not achievable for
+> a DOM carousel that transforms six slides. The check now runs an **idle
+> control** for the same duration: idle costs 0 tasks, paging five spreads
+> costs one ~73ms task at 4× CPU throttle (~18ms real — about one frame).
+> Threshold is now "no worse than idle, and nothing over 100ms".
+>
+> **`prefetch={false}`** on the 26 theme links and 20 footer links. All pointed
+> at the same few routes, and each fired its own prefetch on viewport entry.
+>
+> **Note:** one fresh-build run reported wildly different JS totals
+> (996.8kb) that did not reproduce across four subsequent runs on stable
+> builds. Unexplained; worth watching if it recurs in P7.
+
 **Goal:** Sections 06 (How it works), 07 (Themes) and 08 (Sample spread).
 
 **Prerequisites:** P4 exit criteria met.

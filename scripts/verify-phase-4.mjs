@@ -33,6 +33,26 @@ const sweep = async (page, steps = 24) => {
   }
 }
 
+// Wait until every reveal has finished animating. axe measures COMPUTED
+// contrast, so sampling a card at opacity 0.6 mid-reveal reports a false
+// failure that disappears on the next run.
+const settle = async (page, timeout = 6000) => {
+  await page.evaluate((t) => {
+    const deadline = Date.now() + t
+    return new Promise((resolve) => {
+      const check = () => {
+        const pending = [...document.querySelectorAll("[data-reveal]")].filter(
+          (e) => getComputedStyle(e).opacity !== "1"
+        ).length
+        if (pending === 0 || Date.now() > deadline) resolve(pending)
+        else requestAnimationFrame(check)
+      }
+      check()
+    })
+  }, timeout)
+  await page.waitForTimeout(250)
+}
+
 const stCount = (page) =>
   page.evaluate(() => {
     const ST = window.__ScrollTrigger
@@ -412,6 +432,7 @@ const stCount = (page) =>
     const page = await ctx.newPage()
     await page.goto(BASE, { waitUntil: "load" })
     await sweep(page, 12)
+    await settle(page)
     const { violations } = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
       .analyze()

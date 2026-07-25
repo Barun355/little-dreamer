@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 
@@ -48,11 +49,29 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  nativeButton,
+  render,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  /**
+   * Base UI assumes the rendered element is a native <button> unless told
+   * otherwise. When `render` supplies a link — `<Link href>` or `<a href>` —
+   * the output is an <a>, so leaving `nativeButton` at its default both logs
+   * a warning and gives the element the wrong semantics.
+   *
+   * Detected here rather than at each of the ten call sites: an element
+   * carrying an `href` is a link, whatever component produced it.
+   */
+  const rendersAnchor =
+    React.isValidElement(render) &&
+    (render.type === "a" ||
+      (render.props as { href?: unknown } | null)?.href !== undefined)
+
   return (
     <ButtonPrimitive
       data-slot="button"
+      render={render}
+      nativeButton={nativeButton ?? !rendersAnchor}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

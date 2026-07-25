@@ -109,6 +109,11 @@ export function Nav() {
                 {nav.links.map((link) => (
                   <li key={link.href}>
                     <DialogClose
+                      // These are navigation links that also dismiss the
+                      // sheet, so the rendered element is an <a>, not a
+                      // <button>. Base UI assumes a native button unless
+                      // told otherwise.
+                      nativeButton={false}
                       render={
                         <a
                           href={link.href}
