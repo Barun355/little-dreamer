@@ -128,7 +128,11 @@ Everything that has a CLI gets scaffolded by that CLI, per the brief.
 
 ```bash
 # 1 · Project + shadcn in ONE command (shadcn CLI scaffolds Next.js itself)
-pnpm dlx shadcn@latest init --name little-dreamer --template next --preset base-nova
+#    CORRECTED during P0: `base-nova` is NOT a valid --preset value.
+#    Valid: nova vega maia lyra mira luma sera rhea.  `nova` resolves to
+#    style "base-nova" in components.json — the flag and the style differ.
+#    init ALWAYS creates a subdirectory, so scaffold to a temp dir and move up.
+pnpm dlx shadcn@latest init --name _scaffold --template next --preset nova --yes
 
 # 2 · Primitives actually used by the design
 pnpm dlx shadcn@latest add button card accordion carousel avatar badge \

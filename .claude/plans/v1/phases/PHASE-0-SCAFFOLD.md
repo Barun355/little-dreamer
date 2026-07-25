@@ -1,5 +1,30 @@
 # Phase 0 — Scaffold & Toolchain
 
+> **STATUS: COMPLETE — 2026-07-25.** All 11 checkpoints pass.
+>
+> **Corrections found during implementation:**
+> - `--preset base-nova` is invalid. Valid values: `nova vega maia lyra mira
+>   luma sera rhea`. `nova` resolves to style `base-nova` inside
+>   `components.json` — the CLI flag and the resulting style name differ.
+> - `shadcn init` always creates a subdirectory, so it was scaffolded to
+>   `_scaffold/` and moved up. `shopt` is bash-only; this shell is zsh.
+> - The preset installs **Base UI** (`base: "base"`), not Radix. All later
+>   phases must use the `render` prop for custom triggers, never `asChild`.
+> - Icon library is **lucide**; fonts default to **geist** (P1 replaces both
+>   per D5).
+> - pnpm blocks Prisma's build scripts by default →
+>   `pnpm.onlyBuiltDependencies` added to `package.json`.
+> - Prisma 7 `init` writes `prisma.config.ts` and a `datasource` block with
+>   **no `url`**, and generates `.agents/skills/` + `.windsurf/` +
+>   `skills-lock.json`. `.windsurf/` removed; `.agents/` kept (it carries
+>   Prisma 7 client reference material the app phase will need).
+> - `.gitignore` ships `.env*`, which would have excluded `.env.example`.
+>   Added `!.env.example`.
+> - `components/ui/carousel.tsx` fails React 19's
+>   `react-hooks/set-state-in-effect`. Suppressed inline with a reason —
+>   the initial read of an external store on subscribe is the documented
+>   exception, and keeping upstream's shape keeps `add --diff` clean.
+
 **Goal:** A running Next.js 16 app with every dependency installed, the data layer
 scaffolded-but-inert, and a green production build. Nothing visual yet.
 
