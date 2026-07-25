@@ -41,6 +41,11 @@ model Child {
   age    Int
   gender String // carried verbatim; pronouns are resolved, never inferred downstream
 
+  /// Who the buyer is to the child (parent, grandparent, aunt/uncle…).
+  /// Captured for consent purposes — whoever uploads a photo of a child
+  /// must state their relationship to them.
+  relationship String?
+
   // R2 keys for source photos. Never base64, never the images themselves.
   photoKeys String[]
 
@@ -99,6 +104,13 @@ model Job {
   pronouns     String
   ageBand      String
   simplifyPlot Boolean @default(false)
+
+  /// Catalogue id from content/themes.ts, so a job can be traced back to
+  /// the theme the parent actually picked.
+  themeId String?
+
+  /// Explicit record that the uploader confirmed they may use this photo.
+  consentAt DateTime?
 
   failedStage  String?
   failedReason String?
