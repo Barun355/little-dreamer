@@ -4,6 +4,7 @@
 import { chromium } from "playwright"
 import { neon } from "@neondatabase/serverless"
 import "dotenv/config"
+import zlib from "node:zlib"
 
 const BASE = process.env.BASE ?? "http://localhost:3000"
 const results = []
@@ -80,21 +81,63 @@ await page.waitForTimeout(600)
 const onPhotos = (await page.locator("h1").innerText()).includes("Add their photo")
 rec("W5", onPhotos, `step 3 reached: "${await page.locator("h1").innerText()}"`)
 
-// A tiny real PNG, generated here — no child's likeness involved.
-const png = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAXklEQVR42u3QMQEAAAgDINc/9DTA" +
-  "PQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-  "AAAAAAAAAAAAAAAAAAAAAAAAgFcDT2AAAWr8bQ0AAAAASUVORK5CYII=",
-  "base64"
-)
+// A REALISTICALLY SIZED photo (~1.5 MB), not a 155-byte fixture.
+//
+// The original test used a tiny PNG, which is exactly why it passed while
+// real users hit "Body exceeded 1 MB limit": a Server Action caps its body at
+// 1 MB and base64 adds a third. A fixture smaller than the limit can never
+// catch a size bug. Built here rather than committed, and containing no
+// child's likeness.
+const png = makeLargePng(1_500_000)
+
+function makeLargePng(targetBytes) {
+  const { deflateSync, crc32 } = zlib
+  const w = 700, h = 700
+  // Random RGB so the data does not compress away to nothing.
+  const raw = Buffer.alloc(h * (1 + w * 3))
+  for (let y = 0; y < h; y++) {
+    const row = y * (1 + w * 3)
+    raw[row] = 0
+    for (let x = 0; x < w * 3; x++) raw[row + 1 + x] = (Math.random() * 256) | 0
+  }
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4)
+    len.writeUInt32BE(data.length)
+    const td = Buffer.concat([Buffer.from(type, "ascii"), data])
+    const crc = Buffer.alloc(4)
+    crc.writeUInt32BE(crc32(td) >>> 0)
+    return Buffer.concat([len, td, crc])
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(w, 0)
+  ihdr.writeUInt32BE(h, 4)
+  ihdr[8] = 8; ihdr[9] = 2
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", deflateSync(raw, { level: 0 })),
+    chunk("IEND", Buffer.alloc(0)),
+  ])
+  if (png.length < targetBytes) {
+    console.log(`  (test photo is ${(png.length / 1024 / 1024).toFixed(2)} MB)`)
+  }
+  return png
+}
 await page.setInputFiles('input[type="file"]', {
   name: "test-photo.png",
   mimeType: "image/png",
   buffer: png,
 })
-await page.waitForTimeout(600)
-const thumbs = await page.locator("form ul img").count()
-rec("W6", thumbs === 1, `${thumbs} photo thumbnail rendered after upload`)
+// Wait for the direct-to-R2 upload to finish, not just for the preview.
+await page.waitForFunction(
+  () => !document.querySelector('[role="status"][aria-label="Uploading"]'),
+  undefined,
+  { timeout: 60_000 }
+)
+const thumbs = await page.locator('[data-testid="photo-list"] img').count()
+rec("W6",
+  thumbs === 1,
+  `${thumbs} photo uploaded direct to R2 (${(png.length / 1024 / 1024).toFixed(2)} MB — over the 1 MB Server Action cap)`)
 
 await page.getByRole("checkbox", { name: /Use this photo to build/ }).click()
 await page.waitForTimeout(200)

@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { STATUS_COPY, type JobStatusValue } from "@/lib/create-schema"
+import { requestNotification } from "@/app/create/notify"
 
 const ORDER: JobStatusValue[] = [
   "QUEUED",
@@ -46,6 +47,8 @@ export function StepGenerating({
 }) {
   const [email, setEmail] = React.useState("")
   const [emailed, setEmailed] = React.useState(false)
+  const [emailSending, setEmailSending] = React.useState(false)
+  const [emailNote, setEmailNote] = React.useState<string>()
 
   const { data, error } = useQuery<JobSnapshot>({
     queryKey: ["job", jobId],
@@ -165,15 +168,28 @@ export function StepGenerating({
         </p>
 
         {emailed ? (
-          <p className="text-small text-mint-700">
-            We will email {email} when the book is done.
-          </p>
+          <p className="text-small text-mint-700">{emailNote}</p>
         ) : (
           <form
             className="flex flex-col gap-2 sm:flex-row"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault()
-              if (email.includes("@")) setEmailed(true)
+              setEmailSending(true)
+              const res = await requestNotification({ jobId, email })
+              setEmailSending(false)
+              if (!res.ok) {
+                setEmailNote(res.error)
+                return
+              }
+              setEmailed(true)
+              // Say what actually happened. If no mail provider is
+              // configured the address is stored but nothing was sent, and
+              // claiming otherwise would be a lie the user acts on.
+              setEmailNote(
+                res.sent
+                  ? `Sent — we will email ${email} when the book is done.`
+                  : `Saved. We will email ${email} when the book is done.`
+              )
             }}
           >
             <Input
@@ -185,16 +201,11 @@ export function StepGenerating({
               aria-label="Email address"
               className="flex-1"
             />
-            <Button type="submit" variant="outline" size="lg">
-              Email me the link
+            <Button type="submit" variant="outline" size="lg" disabled={emailSending}>
+              {emailSending ? "Saving…" : "Email me the link"}
             </Button>
           </form>
         )}
-        {/*
-          TODO: this only records intent in the UI. Sending needs a mail
-          provider (Resend) and a job -> email binding. Deliberately not
-          pretending to have sent something.
-        */}
       </div>
     </div>
   )

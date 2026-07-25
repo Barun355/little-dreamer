@@ -8,6 +8,7 @@ import {
   XIcon,
   CheckIcon,
   CameraIcon,
+  LoaderIcon,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -30,7 +31,22 @@ const GUIDANCE = [
 
 const MAX_PHOTOS = 3
 
-/** Step 3 — the photo the likeness is built from. */
+type Upload = {
+  id: string
+  preview: string
+  key?: string
+  status: "uploading" | "done" | "error"
+  error?: string
+}
+
+/**
+ * Step 3 — the photo the likeness is built from.
+ *
+ * Each file is uploaded to R2 the moment it is chosen, via a presigned PUT,
+ * and only the resulting key travels onward. Photos never pass through the
+ * Server Action: its body caps at 1 MB and base64 adds a third on top, so a
+ * real photograph failed with a 413 before reaching any application code.
+ */
 export function StepPhotos({
   value,
   childName,
@@ -46,23 +62,63 @@ export function StepPhotos({
   onBack: () => void
   onGenerate: (v: Photos) => void
 }) {
-  const [photos, setPhotos] = React.useState<string[]>(value.photos ?? [])
+  const [uploads, setUploads] = React.useState<Upload[]>([])
   const [consent, setConsent] = React.useState(value.photoConsent ?? false)
   const [localError, setLocalError] = React.useState<string>()
   const [dragging, setDragging] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
+  // Object URLs are cheap but must be released, or every re-pick leaks.
+  React.useEffect(() => {
+    return () => {
+      for (const u of uploads) URL.revokeObjectURL(u.preview)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const uploadOne = React.useCallback(async (file: File, id: string) => {
+    try {
+      const presign = await fetch("/api/uploads/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentType: file.type, size: file.size }),
+      })
+      if (!presign.ok) {
+        const { error } = await presign.json().catch(() => ({ error: "" }))
+        throw new Error(error || "Could not prepare the upload")
+      }
+      const { url, key } = await presign.json()
+
+      const put = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      })
+      if (!put.ok) throw new Error(`Upload failed (${put.status})`)
+
+      setUploads((list) =>
+        list.map((u) => (u.id === id ? { ...u, key, status: "done" } : u))
+      )
+    } catch (e) {
+      setUploads((list) =>
+        list.map((u) =>
+          u.id === id
+            ? { ...u, status: "error", error: (e as Error).message }
+            : u
+        )
+      )
+    }
+  }, [])
+
   const addFiles = React.useCallback(
-    async (files: FileList | File[]) => {
-      const list = Array.from(files)
-      const room = MAX_PHOTOS - photos.length
+    (files: FileList | File[]) => {
+      const room = MAX_PHOTOS - uploads.length
       if (room <= 0) {
         setLocalError(`You can add up to ${MAX_PHOTOS} photos`)
         return
       }
 
-      const next: string[] = []
-      for (const file of list.slice(0, room)) {
+      for (const file of Array.from(files).slice(0, room)) {
         if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
           setLocalError("Please use a JPG, PNG or WebP image")
           continue
@@ -71,29 +127,28 @@ export function StepPhotos({
           setLocalError("That photo is over 8 MB — please use a smaller one")
           continue
         }
-        next.push(
-          await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onload = () => resolve(String(reader.result))
-            reader.onerror = () => reject(reader.error)
-            reader.readAsDataURL(file)
-          })
-        )
-      }
-      if (next.length) {
-        setPhotos((p) => [...p, ...next])
+        const id = crypto.randomUUID()
+        setUploads((list) => [
+          ...list,
+          { id, preview: URL.createObjectURL(file), status: "uploading" },
+        ])
         setLocalError(undefined)
+        void uploadOne(file, id)
       }
     },
-    [photos.length]
+    [uploads.length, uploadOne]
   )
+
+  const ready = uploads.filter((u) => u.status === "done" && u.key)
+  const pending = uploads.some((u) => u.status === "uploading")
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!photos.length) return setLocalError("Add at least one photo")
+    if (pending) return setLocalError("Give the upload a second to finish")
+    if (!ready.length) return setLocalError("Add at least one photo")
     if (!consent) return setLocalError("Please confirm before we generate")
     setLocalError(undefined)
-    onGenerate({ photos, photoConsent: true })
+    onGenerate({ photos: ready.map((u) => u.key!), photoConsent: true })
   }
 
   const shown = error ?? localError
@@ -142,7 +197,7 @@ export function StepPhotos({
           onDrop={(e) => {
             e.preventDefault()
             setDragging(false)
-            void addFiles(e.dataTransfer.files)
+            addFiles(e.dataTransfer.files)
           }}
           className={cn(
             "flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center transition-colors",
@@ -154,10 +209,10 @@ export function StepPhotos({
           </span>
           <div className="flex flex-col gap-1">
             <p className="font-medium">
-              {photos.length ? "Add another photo" : `Add a photo of ${childName}`}
+              {uploads.length ? "Add another photo" : `Add a photo of ${childName}`}
             </p>
             <p className="text-small text-muted-foreground">
-              Drag one here, or choose a file. Up to {MAX_PHOTOS}.
+              Drag one here, or choose a file. Up to {MAX_PHOTOS}, 8 MB each.
             </p>
           </div>
           <Button
@@ -177,28 +232,56 @@ export function StepPhotos({
             className="sr-only"
             aria-label="Choose photos"
             onChange={(e) => {
-              if (e.target.files) void addFiles(e.target.files)
+              if (e.target.files) addFiles(e.target.files)
               e.target.value = ""
             }}
           />
         </div>
 
-        {photos.length ? (
-          <ul className="grid grid-cols-3 gap-2.5">
-            {photos.map((src, i) => (
-              <li key={i} className="relative">
-                <div className="aspect-square overflow-hidden rounded-xl border border-border bg-muted">
-                  {/* Local data URL preview — next/image cannot optimise these. */}
+        {uploads.length ? (
+          <ul className="grid grid-cols-3 gap-2.5" data-testid="photo-list">
+            {uploads.map((u, i) => (
+              <li key={u.id} className="relative">
+                <div
+                  className={cn(
+                    "aspect-square overflow-hidden rounded-xl border bg-muted",
+                    u.status === "error" ? "border-destructive/50" : "border-border"
+                  )}
+                >
+                  {/* Local object URL preview — next/image cannot optimise these. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={src}
+                    src={u.preview}
                     alt={`Photo ${i + 1} of ${childName}`}
-                    className="size-full object-cover"
+                    className={cn(
+                      "size-full object-cover transition-opacity",
+                      u.status === "done" ? "opacity-100" : "opacity-60"
+                    )}
                   />
                 </div>
+
+                {u.status === "uploading" ? (
+                  <span
+                    className="absolute inset-0 flex items-center justify-center"
+                    role="status"
+                    aria-label="Uploading"
+                  >
+                    <LoaderIcon className="size-5 animate-spin text-lavender-700" aria-hidden />
+                  </span>
+                ) : null}
+
+                {u.status === "error" ? (
+                  <span className="absolute inset-x-1 bottom-1 rounded bg-destructive/10 p-1 text-center text-micro text-destructive">
+                    {u.error ?? "Failed"}
+                  </span>
+                ) : null}
+
                 <button
                   type="button"
-                  onClick={() => setPhotos((p) => p.filter((_, j) => j !== i))}
+                  onClick={() => {
+                    URL.revokeObjectURL(u.preview)
+                    setUploads((list) => list.filter((x) => x.id !== u.id))
+                  }}
                   aria-label={`Remove photo ${i + 1}`}
                   className="absolute -top-2 -right-2 flex size-7 items-center justify-center rounded-full border border-border bg-background shadow-soft-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                 >
@@ -221,8 +304,9 @@ export function StepPhotos({
             Use this photo to build {childName}&rsquo;s character
           </span>
           <span className="text-small text-muted-foreground text-pretty">
-            It is sent to our illustration model once, stored in our own bucket,
-            and deleted within 30 days. It is never used to train anything.
+            It is stored in our own private bucket, sent to our illustration
+            model once, and deleted within 30 days. It is never used to train
+            anything.
           </span>
         </label>
       </div>
@@ -238,9 +322,9 @@ export function StepPhotos({
           <ArrowLeftIcon data-icon="inline-start" />
           Back
         </Button>
-        <Button type="submit" size="xl" disabled={busy}>
+        <Button type="submit" size="xl" disabled={busy || pending}>
           <SparklesIcon data-icon="inline-start" />
-          {busy ? "Starting…" : "Generate my book"}
+          {busy ? "Starting…" : pending ? "Uploading…" : "Generate my book"}
         </Button>
       </div>
     </form>

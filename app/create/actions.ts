@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto"
 
 import { db } from "@/lib/db"
-import { putObject, signedGetUrl } from "@/lib/r2"
+import { signedGetUrl } from "@/lib/r2"
 import { env } from "@/lib/env"
 import { createInputSchema, type CreateInput } from "@/lib/create-schema"
 import { seedForTheme } from "@/content/story-seeds"
@@ -17,13 +17,17 @@ export type StartResult =
  *
  * 1. validate
  * 2. persist child + job (Neon is the source of truth for status)
- * 3. upload the photo to R2
- * 4. hand Make a short-lived PUBLIC URL, never the image bytes
+ * 3. hand Make short-lived SIGNED links to photos the browser already
+ *    uploaded — never the image bytes
  *
- * Step 4 matters: Make retains full request bodies in its execution history,
- * so posting base64 photographs of a child would leave them sitting in those
- * logs indefinitely. A URL to R2 keeps the bytes under our control and lets
- * the retention policy actually mean something.
+ * Photos arrive as R2 keys, not data. They were uploaded straight from the
+ * browser via a presigned PUT, because a Server Action body caps at 1 MB and
+ * base64 adds a third on top: any real photograph 413'd before reaching this
+ * function.
+ *
+ * Signed links rather than public URLs: Make retains full request bodies in
+ * its execution history, and the bucket stays private, so a link that leaks
+ * from a log is worth an hour rather than forever.
  */
 export async function startGeneration(input: CreateInput): Promise<StartResult> {
   const parsed = createInputSchema.safeParse(input)
@@ -60,22 +64,11 @@ export async function startGeneration(input: CreateInput): Promise<StartResult> 
       },
     })
 
-    // Upload photos before creating the job, so a storage failure never
-    // leaves an orphan job stuck at QUEUED.
-    const photoUrls: string[] = []
-    const photoKeys: string[] = []
-    for (const [i, dataUrl] of data.photos.entries()) {
-      const match = /^data:(image\/[a-zA-Z+]+);base64,(.+)$/.exec(dataUrl)
-      if (!match) return { ok: false, error: "That photo could not be read" }
-      const [, contentType, b64] = match
-      const ext = contentType.split("/")[1].replace("jpeg", "jpg")
-      const key = `photos/${child.id}/${i}.${ext}`
-      await putObject(key, Buffer.from(b64, "base64"), contentType)
-      photoKeys.push(key)
-      // A signed link, not a public URL: the bucket stays private, and the
-      // link Make receives expires within the hour.
-      photoUrls.push(await signedGetUrl(key, 60 * 60))
-    }
+    // The browser already put these in R2; we only mint read links.
+    const photoKeys = data.photos
+    const photoUrls = await Promise.all(
+      photoKeys.map((key) => signedGetUrl(key, 60 * 60))
+    )
 
     await db.child.update({ where: { id: child.id }, data: { photoKeys } })
 

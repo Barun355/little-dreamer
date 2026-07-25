@@ -1,7 +1,7 @@
 // Little Dreamer — data model
 //
-// STATUS: INERT. Scaffolded in Phase 0 so the app phase does not start from
-// scratch. No migration has been run and nothing in the landing page reads it.
+// LIVE. Pushed to Neon and read/written by the create wizard, the job status
+// endpoint and the Make callbacks.
 //
 // Prisma 7: the generator is `prisma-client` (not `prisma-client-js`), the
 // datasource carries no `url` (it lives in prisma.config.ts), and the runtime
@@ -111,6 +111,11 @@ model Job {
 
   /// Explicit record that the uploader confirmed they may use this photo.
   consentAt DateTime?
+
+  /// Where to send the "your book is ready" email, when someone asked not to
+  /// wait on the page. Null means they chose to watch instead.
+  notifyEmail  String?
+  notifiedAt   DateTime?
 
   failedStage  String?
   failedReason String?

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { db } from "@/lib/db"
 import { env } from "@/lib/env"
+import { sendBookReady, sendGenerationFailed } from "@/lib/email"
 
 export const dynamic = "force-dynamic"
 
@@ -45,8 +46,40 @@ export async function POST(
   const jobId = body.jobId
   if (!jobId) return NextResponse.json({ error: "jobId required" }, { status: 400 })
 
-  const job = await db.job.findUnique({ where: { id: jobId }, select: { id: true } })
+  const job = await db.job.findUnique({
+    where: { id: jobId },
+    select: { id: true, notifyEmail: true, notifiedAt: true, child: { select: { name: true } } },
+  })
   if (!job) return NextResponse.json({ error: "Unknown job" }, { status: 404 })
+
+  /**
+   * Fires the notification email, at most once per job.
+   *
+   * Never allowed to fail the callback: Make retries a non-2xx response, and
+   * a mail outage must not cause the whole generation to be replayed.
+   */
+  const notify = async (kind: "ready" | "failed", title?: string) => {
+    if (!job.notifyEmail || job.notifiedAt) return
+    const url = `${env.siteUrl}/create?job=${job.id}`
+    const result =
+      kind === "ready"
+        ? await sendBookReady({
+            to: job.notifyEmail,
+            childName: job.child.name,
+            title: title ?? `${job.child.name}'s story`,
+            url,
+          })
+        : await sendGenerationFailed({
+            to: job.notifyEmail,
+            childName: job.child.name,
+            url,
+          })
+    if (result.ok) {
+      await db.job.update({ where: { id: job.id }, data: { notifiedAt: new Date() } })
+    } else if (!result.skipped) {
+      console.error("[webhook] notification failed:", result.error)
+    }
+  }
 
   switch (event) {
     case "story-ready": {
@@ -107,6 +140,7 @@ export async function POST(
         where: { id: jobId },
         data: { status: "READY", completedAt: new Date() },
       })
+      await notify("ready", book.title)
       return NextResponse.json({ ok: true, bookId: book.id })
     }
 
@@ -120,6 +154,7 @@ export async function POST(
           retryable: body.retryable ?? true,
         },
       })
+      await notify("failed")
       break
     }
 

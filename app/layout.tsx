@@ -52,7 +52,17 @@ export default function RootLayout({
       lang="en"
       className={cn(fraunces.variable, inter.variable, "font-sans antialiased")}
     >
-      <body>
+      {/*
+        Browser extensions (Grammarly, ColorZilla and friends) inject
+        attributes onto <body> before React hydrates —
+        `data-gr-ext-installed`, `cz-shortcut-listen` and similar. React
+        reports that as a hydration mismatch even though the app rendered
+        identically on both sides.
+
+        Suppressing on <body> only: it silences the attribute diff on this
+        one element without hiding genuine mismatches in the tree below.
+      */}
+      <body suppressHydrationWarning>
         <a
           href="#main"
           className="sr-only rounded-md bg-primary px-4 py-2 text-primary-foreground focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-100"

@@ -49,9 +49,15 @@ export const themeChoiceSchema = z.object({
 })
 
 export const photosSchema = z.object({
-  /** Data URLs from the browser. At least one, at most three. */
+  /**
+   * R2 object KEYS, not image data.
+   *
+   * The browser uploads each photo straight to R2 with a presigned PUT and
+   * passes back the key. Sending base64 through the Server Action hit the
+   * 1 MB body cap on any real photograph.
+   */
   photos: z
-    .array(z.string().startsWith("data:image/"))
+    .array(z.string().startsWith("photos/"))
     .min(1, "Add at least one photo")
     .max(3, "Three photos is plenty"),
   photoConsent: z.literal(true, {
