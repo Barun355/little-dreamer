@@ -38,6 +38,10 @@ function LinkList({
         <li key={link.label}>
           <Link
             href={link.href}
+            // 20 footer links prefetching on viewport entry is pure waste at
+            // the bottom of a marketing page — visitors who reach the footer
+            // are mostly leaving, not navigating.
+            prefetch={false}
             className="rounded-sm text-small text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
           >
             {link.label}

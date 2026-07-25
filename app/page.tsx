@@ -4,6 +4,9 @@ import { Hero } from "@/components/sections/hero"
 import { TrustBar } from "@/components/sections/trust-bar"
 import { Core } from "@/components/sections/core"
 import { Proof } from "@/components/sections/proof"
+import { HowItWorks } from "@/components/sections/how-it-works"
+import { Themes } from "@/components/sections/themes"
+import { Sample } from "@/components/sections/sample"
 
 /**
  * The landing page.
@@ -15,9 +18,6 @@ import { Proof } from "@/components/sections/proof"
  */
 
 const PENDING = [
-  { id: "how-it-works", label: "06 · How it works", phase: "Phase 5" },
-  { id: "themes", label: "07 · Themes", phase: "Phase 5" },
-  { id: "sample", label: "08 · Sample", phase: "Phase 5" },
   { id: "testimonials", label: "09 · Testimonials", phase: "Phase 6" },
   { id: "pricing", label: "10 · Pricing", phase: "Phase 6" },
   { id: "safety", label: "11 · Safety", phase: "Phase 6" },
@@ -34,6 +34,9 @@ export default function Page() {
         <TrustBar />
         <Core />
         <Proof />
+        <HowItWorks />
+        <Themes />
+        <Sample />
 
         {PENDING.map((section) => (
           <section

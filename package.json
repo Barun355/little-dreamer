@@ -16,7 +16,6 @@
     "@base-ui/react": "^1.6.0",
     "@gsap/react": "^2.1.2",
     "@hookform/resolvers": "^5.4.3",
-    "@lottiefiles/dotlottie-react": "^0.19.12",
     "@neondatabase/serverless": "^1.1.0",
     "@prisma/adapter-neon": "^7.9.0",
     "@prisma/client": "^7.9.0",

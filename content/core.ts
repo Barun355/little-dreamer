@@ -9,6 +9,8 @@
  * and its own dedicated section below.
  */
 
+import { themeCount } from "./themes"
+
 export const core = {
   heading: "Why parents keep these books",
   lead: {
@@ -34,8 +36,12 @@ export const core = {
     },
     {
       id: "themes",
+      // Derived from the catalogue, never typed. The wireframe said "16",
+      // which counted only the profession list — the brief actually defines
+      // 26 across three categories, and two sections disagreeing about the
+      // number is exactly the detail a reader notices (PHASE-5 C5.3).
       icon: "sparkles" as const,
-      title: "Sixteen themes",
+      title: `${themeCount} themes`,
       body: "Unicorns, space, dinosaurs — or the job they say they want to be when they grow up.",
       tone: "lavender" as const,
     },

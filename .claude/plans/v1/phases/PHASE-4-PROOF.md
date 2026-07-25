@@ -1,5 +1,61 @@
 # Phase 4 — Core Bento & Proof
 
+> **STATUS: COMPLETE — 2026-07-25.** All 16 checkpoints pass, stable across
+> three consecutive runs. `scripts/verify-phase-4.mjs`.
+>
+> ```
+> pin        1 pinned trigger + 1 pin-spacer on desktop, progress reaches 1.000
+> mobile     0 pinned, 0 spacers, all 6 pages visible  (<768px never pins)
+> scroll     0 long tasks across a full sweep at 4x CPU throttle
+> CLS        0.0000 including pin and unpin
+> leak       ScrollTrigger count [1,1,1,1,1,1] across 5 round-trips
+> resize     desktop -> mobile -> desktop leaves no orphaned pin spacer
+> slider     keyboard + pointer + touch all drive aria-valuenow
+> reduced    0 triggers, 0 spacers, no drag affordance, everything visible
+> axe        0 violations at 375 and 1440
+> JS         +0.0kb over a bare control route
+> ```
+>
+> **Motion was dropped from the landing page.** GSAP is mandatory here —
+> ScrollTrigger's pinning and scrubbing have no Motion equivalent — so adding
+> Motion for fade-ups would ship a second ~50kb animation library to do what
+> the first already does. `RevealGroup` (GSAP, using `ScrollTrigger.batch` so
+> N items share one trigger) replaces `Reveal`/`StaggerGroup` here. This
+> deviates from the three-library choice made at planning time; Motion remains
+> the right tool for the app phase, where gestures and layout animation earn
+> its weight.
+>
+> **Two performance fixes, both found by the gate:**
+> - **GSAP setup deferred to `requestIdleCallback`.** Running it inline with
+>   hydration cost 250ms+ of main-thread time for animation nobody can see
+>   yet.
+> - **`gpu-layer` promotion on scrubbed elements.** Animating opacity across
+>   two dozen gradient-filled placeholders was repainting on the main thread.
+>   Scroll long tasks went from 4 (worst 275ms) to **0**.
+>
+> **Three harness bugs that had been corrupting results:**
+> 1. `pnpm start` spawns `next-server` as a **grandchild**. Killing the wrapper
+>    PID orphaned it, so it kept holding port 3000 and later runs silently
+>    measured a stale server — this is what produced the confusing
+>    "stale build" episodes in P3 too. Fixed by
+>    `scripts/with-prod-server.sh`, which tears down explicitly and refuses
+>    to run against a dev build.
+> 2. C4.6 registered its long-task observer immediately after `load`, so it
+>    was measuring **hydration** and attributing it to the scroll animation.
+>    The two are now reported separately.
+> 3. C4.10 measured the slider's bounding box while the pinned scene was
+>    mid-scrub, so coordinates went stale mid-gesture. It now settles the
+>    scene at its pin end first.
+>
+> **Instrumentation:** `window.__ScrollTrigger` is exposed in development, and
+> in production only when the build sets `NEXT_PUBLIC_EXPOSE_GSAP=1`. Pin and
+> leak checks must run against a production build to mean anything, but a real
+> release should not hand every visitor a global GSAP handle.
+>
+> **Carried to P7:** hydration still shows ~6 long tasks, worst ~300ms at 4×
+> CPU throttle. That is framework + GSAP init, not the scene, and P7 owns the
+> TBT/INP targets. It is the single biggest remaining performance risk.
+
 **Goal:** Sections 04 and 05. The competitive argument. The hardest scroll work in
 the build.
 
