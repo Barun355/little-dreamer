@@ -76,14 +76,14 @@ export function Hero() {
         </p>
 
         <div className="flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row">
-          <Button size="xl" className="w-full sm:w-auto" render={<Link href={hero.primaryCta.href} />}>
+          <Button size="lg" className="w-full sm:w-auto" render={<Link href={hero.primaryCta.href} />}>
             {hero.primaryCta.label}
             <ArrowRightIcon data-icon="inline-end" />
           </Button>
 
           <Button
             variant="outline"
-            size="xl"
+            size="lg"
             className="w-full sm:w-auto"
             render={<a href={hero.secondaryCta.href} />}
           >

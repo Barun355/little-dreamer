@@ -26,6 +26,20 @@ export const EASING = {
 } as const
 
 /**
+ * GSAP equivalents of EASING above.
+ *
+ * GSAP takes named ease STRINGS; cubic-bezier arrays are a Motion idiom and
+ * GSAP only accepts bezier syntax via the CustomEase plugin, which is not
+ * worth loading for this. These are the closest native curves, so the two
+ * libraries stay visually consistent without a third dependency.
+ */
+export const GSAP_EASE = {
+  out: "power3.out",
+  inOut: "power2.inOut",
+  soft: "power1.out",
+} as const
+
+/**
  * GSAP scrubbed tweens MUST be linear. Easing a scrub decouples the
  * animation from the scrollbar and reads as lag, not polish.
  */

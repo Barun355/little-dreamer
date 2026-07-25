@@ -288,4 +288,20 @@
     animation-delay: var(--delay, 0ms);
     will-change: transform;
   }
+
+  /*
+    Promote scrubbed elements to their own compositor layer.
+
+    The proof scene animates opacity across two dozen boxes filled with a
+    repeating-linear-gradient. Without promotion each opacity change repaints
+    that gradient on the main thread, which showed up as long tasks during
+    scroll. Promoted, the compositor handles opacity and transform alone.
+
+    Applied only to elements the scene actually animates — blanket
+    `will-change` costs memory and can make things worse.
+  */
+  .gpu-layer {
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+  }
 }

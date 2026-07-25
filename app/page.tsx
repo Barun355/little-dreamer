@@ -2,6 +2,8 @@ import { Nav } from "@/components/sections/nav"
 import { Footer } from "@/components/sections/footer"
 import { Hero } from "@/components/sections/hero"
 import { TrustBar } from "@/components/sections/trust-bar"
+import { Core } from "@/components/sections/core"
+import { Proof } from "@/components/sections/proof"
 
 /**
  * The landing page.
@@ -13,8 +15,6 @@ import { TrustBar } from "@/components/sections/trust-bar"
  */
 
 const PENDING = [
-  { id: "core", label: "04 · Core", phase: "Phase 4" },
-  { id: "proof", label: "05 · Proof", phase: "Phase 4" },
   { id: "how-it-works", label: "06 · How it works", phase: "Phase 5" },
   { id: "themes", label: "07 · Themes", phase: "Phase 5" },
   { id: "sample", label: "08 · Sample", phase: "Phase 5" },
@@ -32,6 +32,8 @@ export default function Page() {
       <main id="main">
         <Hero />
         <TrustBar />
+        <Core />
+        <Proof />
 
         {PENDING.map((section) => (
           <section

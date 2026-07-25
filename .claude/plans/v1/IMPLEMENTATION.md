@@ -253,7 +253,15 @@ opacity-only. This is checkpointed in every phase that adds motion.
   │   □  LCP                                        < 2.0s             │
   │   □  CLS                                        < 0.05             │
   │   □  INP                                        < 200ms            │
-  │   □  Total JS transferred                       < 180kb gzip       │
+  │   □  App JS over framework floor                < 60kb gzip        │
+  │      ── CORRECTED after P3. The original "total JS < 180kb" was    │
+  │         set BELOW the achievable floor: a near-bare route on       │
+  │         Next 16.2.6 + React 19.2.4 measures 186.4kb gzip, and the  │
+  │         full landing page measures the same. Absolute page weight  │
+  │         is therefore dominated by the framework and says nothing   │
+  │         about our code. The meaningful number is the delta over a  │
+  │         bare control route, which every phase now reports.         │
+  │      ── measured at P3: landing adds +0.0kb over control.          │
   │                                                                     │
   │  ACCESSIBILITY                                                     │
   │   □  Lighthouse a11y                            100                │

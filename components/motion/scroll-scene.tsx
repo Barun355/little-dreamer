@@ -6,16 +6,25 @@ import { ScrollTrigger } from "gsap/ScrollTrigger"
 import { useGSAP } from "@gsap/react"
 
 import { cn } from "@/lib/utils"
-import { useReducedMotion } from "@/hooks/use-reduced-motion"
+import { useReducedMotion, useDeferredUntilIdle } from "@/hooks/use-reduced-motion"
 
 // Registered once, at module scope. Registering inside a component re-runs
 // on every mount and is a documented source of duplicate-plugin warnings.
 gsap.registerPlugin(useGSAP, ScrollTrigger)
 
-// Dev-only instrumentation so leak checks (PHASE-1 C1.8 / C1.9) can assert
-// against the real trigger count instead of trusting that cleanup happened.
-// Stripped from production builds by the constant-folded NODE_ENV check.
-if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
+// Instrumentation so leak, pin and reduced-motion checks can assert against
+// the real trigger count instead of trusting that cleanup happened.
+//
+// Enabled in development, and in production ONLY when the build sets
+// NEXT_PUBLIC_EXPOSE_GSAP=1. The pinning and leak checkpoints have to run
+// against a production build to be meaningful, but a real release should not
+// hand a global GSAP handle to every visitor — so verification builds opt in
+// explicitly and the constant folds away in a normal build.
+if (
+  typeof window !== "undefined" &&
+  (process.env.NODE_ENV === "development" ||
+    process.env.NEXT_PUBLIC_EXPOSE_GSAP === "1")
+) {
   ;(window as unknown as { __ScrollTrigger?: typeof ScrollTrigger }).__ScrollTrigger =
     ScrollTrigger
 }
@@ -41,8 +50,16 @@ export type SceneBuilder = (ctx: SceneContext) => void
 type ScrollSceneProps = {
   /** Builds the timeline. Called once per matched media condition. */
   build: SceneBuilder
-  /** ScrollTrigger overrides. `trigger` defaults to the scene root. */
-  scrollTrigger?: ScrollTrigger.Vars
+  /**
+   * ScrollTrigger overrides. `trigger` defaults to the scene root.
+   *
+   * Accepts a function of the matched conditions so a scene can pin on
+   * desktop and not on mobile — pinned scroll-jacking on a phone reads as
+   * broken, and that decision has to be expressible per breakpoint.
+   */
+  scrollTrigger?:
+    | ScrollTrigger.Vars
+    | ((conditions: SceneConditions) => ScrollTrigger.Vars)
   /**
    * When true, the scene does not run below 768px — children render in their
    * natural static state instead. Use for anything that pins: pinned
@@ -79,11 +96,14 @@ export function ScrollScene({
 }: ScrollSceneProps) {
   const root = React.useRef<HTMLDivElement>(null)
   const reduced = useReducedMotion()
+  const ready = useDeferredUntilIdle()
 
   useGSAP(
     () => {
       const el = root.current
-      if (!el) return
+      // Wait for idle: building this scene inline with hydration cost 250ms+
+      // of main-thread time for animation nobody can see yet.
+      if (!el || !ready) return
 
       const q = gsap.utils.selector(el)
 
@@ -113,6 +133,11 @@ export function ScrollScene({
           const conditions = ctx.conditions as SceneConditions
           if (desktopOnly && conditions.mobile) return
 
+          const overrides =
+            typeof scrollTrigger === "function"
+              ? scrollTrigger(conditions)
+              : scrollTrigger
+
           const tl = gsap.timeline({
             scrollTrigger: {
               trigger: el,
@@ -122,7 +147,7 @@ export function ScrollScene({
               // The timeline uses viewport-derived distances, so they must be
               // recomputed on resize rather than baked in at creation.
               invalidateOnRefresh: true,
-              ...scrollTrigger,
+              ...overrides,
             },
           })
 
@@ -132,7 +157,7 @@ export function ScrollScene({
     },
     {
       scope: root,
-      dependencies: [reduced, desktopOnly],
+      dependencies: [reduced, desktopOnly, ready],
       // useGSAP only reverts on UNMOUNT by default. Without this, the
       // ScrollTriggers created during the pre-hydration render (when the
       // reduced-motion snapshot is still false) survive after the preference

@@ -15,6 +15,49 @@ const QUERY = "(prefers-reduced-motion: reduce)"
  * corrects in a layout effect before paint. `useSyncExternalStore` keeps it
  * in sync if the user changes the OS setting while the page is open.
  */
+/**
+ * True once the browser has been idle after hydration.
+ *
+ * GSAP setup — building timelines, creating ScrollTriggers, inserting pin
+ * spacers — is measurably expensive: it produced 250ms+ long tasks when it ran
+ * inline with hydration. None of it is needed for first paint, and scroll
+ * always begins well after. Deferring to idle keeps it off the critical path
+ * without risking triggers being absent when the user reaches the section.
+ *
+ * Falls back to a short timeout where requestIdleCallback is unavailable.
+ */
+export function useDeferredUntilIdle(timeout = 400): boolean {
+  const [ready, setReady] = React.useState(false)
+
+  React.useEffect(() => {
+    let cancelled = false
+    const go = () => {
+      if (!cancelled) setReady(true)
+    }
+
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number
+      cancelIdleCallback?: (handle: number) => void
+    }
+
+    if (typeof w.requestIdleCallback === "function") {
+      const handle = w.requestIdleCallback(go, { timeout })
+      return () => {
+        cancelled = true
+        w.cancelIdleCallback?.(handle)
+      }
+    }
+
+    const t = window.setTimeout(go, 0)
+    return () => {
+      cancelled = true
+      window.clearTimeout(t)
+    }
+  }, [timeout])
+
+  return ready
+}
+
 export function useReducedMotion(): boolean {
   const subscribe = React.useCallback((onChange: () => void) => {
     if (typeof window === "undefined") return () => {}

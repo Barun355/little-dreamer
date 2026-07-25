@@ -1,5 +1,21 @@
 # Phase 2 — App Shell
 
+> **STATUS: COMPLETE — 2026-07-25.** All 13 checkpoints pass against a
+> production build (`scripts/verify-phase-2-3.mjs`, 26 assertions with P3).
+>
+> **Deviations:**
+> - **`next-themes` removed entirely.** It only ever ran `forcedTheme="light"`,
+>   and `:root` already is the light palette — so it was client weight that
+>   changed nothing on screen. Returns when a real dark palette exists.
+> - **`QueryProvider` and `Toaster` are not mounted.** Nothing on a marketing
+>   page fetches server state or raises a toast. Both remain in the repo for
+>   the app phase. "Scaffolded" was the requirement; "mounted" was not.
+> - **Footer accordion → native `<details>`.** Disclosure is exactly what
+>   `<details>` is for: keyboard operable, screen-reader announced, works
+>   without JS, zero bundle cost.
+> - Legal stubs live at `/legal/[slug]` and say plainly that the policy is
+>   unpublished. A fabricated privacy policy would be worse than no page.
+
 **Goal:** Root layout, providers, nav (01) and footer (13) complete and responsive.
 The frame the whole page hangs in.
 
