@@ -16,7 +16,7 @@ export const aiModelConfigSchema = z.object({
 })
 
 export const DEFAULT_TEXT_MODEL = "gpt-4o-mini"
-export const DEFAULT_IMAGE_MODEL = "dall-e-3"
+export const DEFAULT_IMAGE_MODEL = "gpt-image-1-mini"
 export const DEFAULT_NINEROUTER_TEXT_MODEL = "kr/claude-sonnet-4.5"
 export const DEFAULT_NINEROUTER_BASE_URL = "http://localhost:20128/v1"
 
@@ -71,6 +71,5 @@ export function createConfigFromEnv(
     provider: "openai",
     apiKey: env.OPENAI_API_KEY,
     textModel: env.OPENAI_TEXT_MODEL,
-    imageModel: env.OPENAI_IMAGE_MODEL,
   }
 }

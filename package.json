@@ -1,12 +1,12 @@
 {
-  "name": "testing",
+  "name": "little-dreamer",
   "version": "0.0.1",
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "NODE_OPTIONS='--import @inngest/otel/node' next dev",
     "build": "prisma generate && next build",
-    "start": "next start",
+    "start": "NODE_OPTIONS='--import @inngest/otel/node' next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
@@ -15,10 +15,12 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "inngest:dev": "pnpm dlx inngest-cli@latest dev -u http://localhost:3000/api/inngest"
+    "inngest:dev": "pnpm dlx inngest-cli@latest dev -u http://localhost:3000/api/inngest",
+    "test:harness": "tsx --test harness/__tests__/harness.test.ts orchestrator/__tests__/image-defaults.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1106.0",
+    "@inngest/otel": "^0.2.2",
     "@neondatabase/auth": "0.5.0-beta",
     "@paralleldrive/cuid2": "^3.3.0",
     "@prisma/adapter-neon": "^7.9.1",
@@ -52,6 +54,7 @@
     "prettier-plugin-tailwindcss": "^0.8.0",
     "prisma": "^7.9.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.12",
     "typescript": "^5"
   },
   "packageManager": "pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee"

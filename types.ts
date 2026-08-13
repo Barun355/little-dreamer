@@ -1,9 +1,15 @@
-export type { StorybookResources, StorybookStoryContent, StorybookImages, StorybookTheme, GeneratedStory, ImagePrompt } from "./types/schemas"
+export type {
+  StorybookResources,
+  StorybookStoryContent,
+  StorybookImages,
+  StorybookTheme,
+  StorybookCharacter,
+  ImagePromptSlot,
+} from "./types/schemas"
 export {
   completedStorybookResourcesSchema,
-  generatedStorySchema,
-  imagePromptListSchema,
-  imagePromptSchema,
+  imagePromptSlotSchema,
+  storybookCharacterSchema,
   storybookImagesSchema,
   storybookPageSchema,
   storybookResourcesSchema,

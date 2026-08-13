@@ -1,3 +1,6 @@
+// Load OpenAI / GenAI OpenTelemetry instrumentation before Inngest or openai imports.
+import "@inngest/otel/node"
+
 import { serve } from "inngest/next"
 
 import { inngest } from "@/inngest/client"

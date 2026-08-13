@@ -1,31 +1,18 @@
-import { z } from "zod"
-
 import { getStoryThemeById } from "@/features/story/constants/themes"
-import {
-  buildImagePromptGenerationPrompt,
-  buildStoryGenerationPrompt,
-  getImagePromptForSlot,
-} from "@/features/story/lib/generation-prompts"
 import { storybookGenerationEventSchema } from "@/features/story/schemas"
-import {
-  buildStructuredJsonMessages,
-  GENERATED_STORY_EXAMPLE,
-  GENERATED_STORY_JSON_SCHEMA,
-  IMAGE_PROMPT_LIST_EXAMPLE,
-  IMAGE_PROMPT_LIST_JSON_SCHEMA,
-  parseJsonModelOutput,
+import { StoryHarness } from "@/harness"
+import { StorybookRunner } from "@/harness/runner"
+import { loadPipelineConfig } from "@/inngest/lib/pipeline-config"
+import { prisma } from "@/lib/db"
+import { uploadChildPhoto, uploadStoryImage } from "@/lib/r2"
+import { parseInput, parseOutput } from "@/lib/validation"
+import type {
+  GenerateImageOptions,
+  ReferenceImageInput,
 } from "@/orchestrator"
 import {
-  orchestratorGenerateImage,
-  orchestratorGenerateText,
-} from "@/inngest/lib/orchestrator-steps"
-import { prisma } from "@/lib/db"
-import { uploadChildPhoto, uploadImageFromUrl, uploadStoryImage } from "@/lib/r2"
-import { parseInput, parseOutput } from "@/lib/validation"
-import {
   completedStorybookResourcesSchema,
-  imagePromptListSchema,
-  storybookStoryContentSchema,
+  type ImagePromptSlot,
 } from "@/types/schemas"
 
 import { inngest, STORYBOOK_GENERATION_REQUESTED } from "../client"
@@ -38,11 +25,22 @@ const IMAGE_SLOTS = [
   "page4",
   "page5",
   "backCover",
-] as const
+] as const satisfies readonly ImagePromptSlot[]
 
-const imagePromptResponseSchema = z.object({
-  prompts: imagePromptListSchema,
-})
+type GenerateAndStoreImageInput = {
+  prompt: string
+  referenceImage: ReferenceImageInput
+  username: string
+  storybookId: string
+  slot: ImagePromptSlot
+  size: NonNullable<GenerateImageOptions["size"]>
+  quality: NonNullable<GenerateImageOptions["quality"]>
+  n: number
+}
+
+type GenerateAndStoreImageResult = {
+  url: string
+}
 
 async function markStorybookFailed(storybookId: string) {
   await prisma.storybook.updateMany({
@@ -73,10 +71,70 @@ export const generateStorybookWorkflow = inngest.createFunction(
       throw new Error("Invalid story theme.")
     }
 
+    const harness = new StoryHarness()
+    // Load outside step.run so API keys are not persisted in Inngest step state.
+    const runner = new StorybookRunner(loadPipelineConfig())
+
+    const photoInput: ReferenceImageInput = {
+      base64: payload.photo.base64,
+      contentType: payload.photo.contentType,
+    }
+
+    /**
+     * Generate with OpenAI then upload to R2 in the same durable step.
+     * Returns only a small URL (+ usage) so Inngest never memoizes multi-MB base64.
+     */
+    async function generateAndStoreStoryImage(
+      input: GenerateAndStoreImageInput
+    ): Promise<GenerateAndStoreImageResult> {
+      const result = await runner.generateImage({
+        prompt: input.prompt,
+        referenceImage: input.referenceImage,
+        size: input.size,
+        quality: input.quality,
+        n: input.n,
+      })
+
+      const image = result.images[0]
+
+      if (!image) {
+        throw new Error(`Orchestrator did not return an image for ${input.slot}.`)
+      }
+
+      let buffer: Buffer
+      let contentType = "image/png"
+
+      if (image.b64Json) {
+        buffer = Buffer.from(image.b64Json, "base64")
+      } else if (image.url) {
+        const response = await fetch(image.url)
+
+        if (!response.ok) {
+          throw new Error(`Failed to download generated image for ${input.slot}.`)
+        }
+
+        buffer = Buffer.from(await response.arrayBuffer())
+        contentType = response.headers.get("content-type") ?? "image/png"
+      } else {
+        throw new Error(`Orchestrator returned no image URL or data for ${input.slot}.`)
+      }
+
+      const url = await uploadStoryImage({
+        username: input.username,
+        storybookId: input.storybookId,
+        slot: input.slot,
+        buffer,
+        contentType,
+      })
+
+      return { url }
+    }
+
     const photoUrl = await step.run("upload-child-photo-to-r2", async () => {
       const buffer = Buffer.from(payload.photo.base64, "base64")
 
       return uploadChildPhoto({
+        username: payload.username,
         storybookId: payload.storybookId,
         buffer,
         contentType: payload.photo.contentType,
@@ -100,135 +158,119 @@ export const generateStorybookWorkflow = inngest.createFunction(
       })
     })
 
+    const storyRequest = harness.buildStoryGenerationRequest({
+      childName: payload.childName,
+      childAge: payload.childAge,
+      theme: {
+        title: theme.title,
+        baseStory: theme.baseStory,
+      },
+      photo: photoInput,
+      photoUrl,
+    })
+
     const storyResponse = await step.ai.wrap(
       "generate-story-content",
-      orchestratorGenerateText,
-      {
-        messages: buildStructuredJsonMessages({
-          schemaName: GENERATED_STORY_JSON_SCHEMA.name,
-          taskDescription:
-            "Write a personalized five-page children's storybook as structured JSON.",
-          example: GENERATED_STORY_EXAMPLE,
-          userPrompt: buildStoryGenerationPrompt({
-            childName: payload.childName,
-            childAge: payload.childAge,
-            theme,
-          }),
-        }),
-        jsonSchema: GENERATED_STORY_JSON_SCHEMA,
+      runner.generateStory.bind(runner),
+      storyRequest
+    )
+
+    const storyBundle = await step.run("persist-generated-story", async () => {
+      const parsed = harness.parseStoryOutput(storyResponse.text, {
+        fallbackChildName: payload.childName,
+      })
+
+      const story = {
+        title: parsed.title,
+        coverSubtitle: parsed.coverSubtitle,
+        baseStory: parsed.baseStory,
+        backCoverBlurb: parsed.backCoverBlurb,
+        pages: parsed.pages,
+        character: {
+          name: parsed.character.name,
+          visualDescription: parsed.character.visualDescription,
+          photoUrl,
+        },
       }
-    )
 
-    const story = parseOutput(
-      storybookStoryContentSchema,
-      parseJsonModelOutput(storyResponse.text),
-      "Story generation returned invalid JSON."
-    )
-
-    await step.run("persist-generated-story", async () => {
       await prisma.storybook.update({
         where: { id: payload.storybookId },
         data: {
           resources: {
-            story: {
-              title: story.title,
-              baseStory: story.baseStory,
-              pages: story.pages,
-            },
+            story,
           },
         },
       })
+
+      return { ...parsed, character: story.character }
     })
 
-    const promptResponse = await step.ai.wrap(
-      "generate-image-prompts",
-      orchestratorGenerateText,
-      {
-        messages: buildStructuredJsonMessages({
-          schemaName: IMAGE_PROMPT_LIST_JSON_SCHEMA.name,
-          taskDescription:
-            "Create seven precise image-generation prompts for a children's storybook as structured JSON.",
-          example: IMAGE_PROMPT_LIST_EXAMPLE,
-          userPrompt: buildImagePromptGenerationPrompt({
-            childName: payload.childName,
-            childAge: payload.childAge,
-            photoUrl,
-            theme,
-            story,
-          }),
-        }),
-        jsonSchema: IMAGE_PROMPT_LIST_JSON_SCHEMA,
-      }
-    )
-
-    const promptPayload = parseOutput(
-      imagePromptResponseSchema,
-      parseJsonModelOutput(promptResponse.text),
-      "Image prompt generation returned invalid JSON."
-    )
-
-    const generatedImages = await Promise.all(
-      IMAGE_SLOTS.map((slot) =>
-        step.ai.wrap(`generate-image-${slot}`, orchestratorGenerateImage, {
-          prompt: getImagePromptForSlot(promptPayload.prompts, slot),
-          size: "1024x1024",
-          quality: "standard",
-          n: 1,
-        })
-      )
-    )
-
-    const uploadedImages = await Promise.all(
-      IMAGE_SLOTS.map((slot, index) =>
-        step.run(`store-image-${slot}`, async () => {
-          const image = generatedImages[index]?.images[0]
-
-          if (!image) {
-            throw new Error(`Orchestrator did not return an image for ${slot}.`)
-          }
-
-          if (image.url) {
-            return uploadImageFromUrl({
-              storybookId: payload.storybookId,
-              slot,
-              imageUrl: image.url,
-            })
-          }
-
-          if (image.b64Json) {
-            return uploadStoryImage({
-              storybookId: payload.storybookId,
-              slot,
-              buffer: Buffer.from(image.b64Json, "base64"),
-            })
-          }
-
-          throw new Error(`Orchestrator returned no image URL or data for ${slot}.`)
-        })
-      )
-    )
-
-    const resources = parseOutput(completedStorybookResourcesSchema, {
-      story: {
-        title: story.title,
-        baseStory: story.baseStory,
-        pages: story.pages,
-      },
-      story_images: {
-        frontCover: uploadedImages[0],
-        backCover: uploadedImages[6],
-        stories: uploadedImages.slice(1, 6),
-      },
+    const imagePrompts = await step.run("assemble-image-prompts", async () => {
+      return harness.assembleImagePrompts({
+        character: storyBundle.character,
+        pages: storyBundle.pages,
+        slots: IMAGE_SLOTS,
+        title: storyBundle.title,
+        coverSubtitle: storyBundle.coverSubtitle,
+        backCoverBlurb: storyBundle.backCoverBlurb,
+        baseStory: storyBundle.baseStory,
+      })
     })
 
-    await step.run("save-storybook-resources", async () => {
+    const storedImages = await Promise.all(
+      IMAGE_SLOTS.map((slot) => {
+        const prompt = imagePrompts.find((item) => item.slot === slot)?.prompt
+
+        if (!prompt) {
+          throw new Error(`Missing assembled image prompt for ${slot}.`)
+        }
+
+        return step.ai.wrap(
+          `generate-image-${slot}`,
+          generateAndStoreStoryImage,
+          {
+            prompt,
+            referenceImage: photoInput,
+            username: payload.username,
+            storybookId: payload.storybookId,
+            slot,
+            size: "1024x1024",
+            quality: "medium",
+            n: 1,
+          } satisfies GenerateAndStoreImageInput
+        )
+      })
+    )
+
+    // Build + validate resources inside a durable step so Finalization never
+    // re-runs Zod against incomplete parallel image outputs.
+    const resources = await step.run("build-and-save-storybook-resources", async () => {
+      const built = parseOutput(completedStorybookResourcesSchema, {
+        story: {
+          title: storyBundle.title,
+          coverSubtitle: storyBundle.coverSubtitle,
+          baseStory: storyBundle.baseStory,
+          backCoverBlurb: storyBundle.backCoverBlurb,
+          pages: storyBundle.pages,
+          character: storyBundle.character,
+        },
+        story_images: {
+          
+          frontCover: storedImages[0]?.url,
+          backCover: storedImages[6]?.url,
+          stories: storedImages.slice(1, 6).map((item) => item.url),
+        },
+      })
+
       await prisma.storybook.update({
         where: { id: payload.storybookId },
         data: {
-          resources,
+          resources: built,
           status: "COMPLETED",
         },
       })
+
+      return built
     })
 
     return {

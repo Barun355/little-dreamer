@@ -67,6 +67,11 @@ export default async function StoryDetailPage({ params }: StoryDetailPageProps) 
                 storybook.theme?.baseStory ??
                 "Your personalized story will appear here once generation is complete."}
             </p>
+            {generatedStory?.character?.visualDescription ? (
+              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                Character lock: {generatedStory.character.visualDescription}
+              </p>
+            ) : null}
           </div>
 
           {storyImages?.frontCover ? (

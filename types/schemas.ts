@@ -3,6 +3,15 @@ import { z } from "zod"
 export const storybookPageSchema = z.object({
   pageNumber: z.number().int().min(1).max(5),
   text: z.string().min(1),
+  sceneDescription: z.string().min(1).optional(),
+  dialogueBubble: z.string().min(1).optional(),
+})
+
+export const storybookCharacterSchema = z.object({
+  name: z.string().min(1),
+  visualDescription: z.string().min(1),
+  photoUrl: z.string().url().optional(),
+  referenceImageUrl: z.string().url().optional(),
 })
 
 /** User-selected theme direction stored on the storybook row. */
@@ -13,8 +22,11 @@ export const storybookThemeSchema = z.object({
 
 export const storybookStoryContentSchema = z.object({
   title: z.string().min(1),
+  coverSubtitle: z.string().min(1).optional(),
   baseStory: z.string().min(1),
+  backCoverBlurb: z.string().min(1).optional(),
   pages: z.array(storybookPageSchema).length(5),
+  character: storybookCharacterSchema.optional(),
 })
 
 export const storybookImagesSchema = z.object({
@@ -34,8 +46,6 @@ export const completedStorybookResourcesSchema = z.object({
   story_images: storybookImagesSchema,
 })
 
-export const generatedStorySchema = storybookStoryContentSchema
-
 export const imagePromptSlotSchema = z.enum([
   "frontCover",
   "page1",
@@ -46,16 +56,9 @@ export const imagePromptSlotSchema = z.enum([
   "backCover",
 ])
 
-export const imagePromptSchema = z.object({
-  slot: imagePromptSlotSchema,
-  prompt: z.string().min(20),
-})
-
-export const imagePromptListSchema = z.array(imagePromptSchema).length(7)
-
 export type StorybookTheme = z.infer<typeof storybookThemeSchema>
+export type StorybookCharacter = z.infer<typeof storybookCharacterSchema>
 export type StorybookStoryContent = z.infer<typeof storybookStoryContentSchema>
 export type StorybookImages = z.infer<typeof storybookImagesSchema>
 export type StorybookResources = z.infer<typeof storybookResourcesSchema>
-export type GeneratedStory = z.infer<typeof generatedStorySchema>
-export type ImagePrompt = z.infer<typeof imagePromptSchema>
+export type ImagePromptSlot = z.infer<typeof imagePromptSlotSchema>

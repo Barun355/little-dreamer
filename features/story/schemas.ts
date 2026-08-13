@@ -30,6 +30,8 @@ export const storyPhotoPayloadSchema = z.object({
 
 export const createStorybookInputSchema = z.object({
   storybookId: z.string().min(1),
+  userId: z.string().min(1),
+  username: z.string().min(1),
   childName: z
     .string()
     .trim()
@@ -98,12 +100,15 @@ export type StoryPhotoPayload = z.infer<typeof storyPhotoPayloadSchema>
 
 export async function mapFormValuesToCreateInput(
   values: z.infer<typeof createStorybookFormSchema>,
-  storybookId: string
+  storybookId: string,
+  user: { id: string; username: string }
 ): Promise<CreateStorybookInput> {
   const photoBuffer = Buffer.from(await values.photo.arrayBuffer())
 
   return createStorybookInputSchema.parse({
     storybookId,
+    userId: user.id,
+    username: user.username,
     childName: values.childName,
     childAge: Number(values.childAge),
     themeId: values.themeId,

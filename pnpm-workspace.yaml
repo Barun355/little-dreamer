@@ -8,3 +8,4 @@ allowBuilds:
   prisma: true
   protobufjs: true
   core-js: set this to true or false
+  esbuild: true

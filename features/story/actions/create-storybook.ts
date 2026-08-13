@@ -40,10 +40,16 @@ export async function createStorybook(formData: FormData) {
     throw new Error("Please choose a valid story theme.")
   }
 
+  if (!user.username) {
+    throw new Error("User storage identity is missing. Please sign in again.")
+  }
+
   const storybookId = createStorybookId()
   const photoBuffer = Buffer.from(await parsedForm.data.photo.arrayBuffer())
   const input = parseInput(createStorybookInputSchema, {
     storybookId,
+    userId: user.id,
+    username: user.username,
     childName: parsedForm.data.childName,
     childAge: Number(parsedForm.data.childAge),
     themeId: parsedForm.data.themeId,

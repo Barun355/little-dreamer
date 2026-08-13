@@ -1,6 +1,9 @@
 import { z } from "zod"
 
-import { syncUser } from "@/lib/auth/sync-user"
+import {
+  syncUser,
+  UserAlreadyExistsError,
+} from "@/lib/auth/sync-user"
 import {
   NeonWebhookVerificationError,
   verifyNeonWebhook,
@@ -49,6 +52,11 @@ export async function POST(request: Request) {
     if (error instanceof NeonWebhookVerificationError) {
       console.error("[neon-auth webhook] verification failed:", error)
       return Response.json({ error: error.message }, { status: 401 })
+    }
+
+    if (error instanceof UserAlreadyExistsError) {
+      console.warn("[neon-auth webhook]", error.message)
+      return Response.json({ ok: true, message: error.message })
     }
 
     console.error("[neon-auth webhook] processing failed:", error)

@@ -31,11 +31,3 @@ export function parseOutput<T extends z.ZodType>(
 
   return result.data
 }
-
-export function safeParseOutput<T extends z.ZodType>(
-  schema: T,
-  data: unknown
-): z.infer<T> | null {
-  const result = schema.safeParse(data)
-  return result.success ? result.data : null
-}

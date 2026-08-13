@@ -13,29 +13,29 @@ export { AIModelError, AIProviderError } from "./errors"
 export {
   buildJsonOnlySystemPrompt,
   buildStructuredJsonMessages,
-  GENERATED_STORY_EXAMPLE,
-  GENERATED_STORY_JSON_SCHEMA,
-  IMAGE_PROMPT_LIST_EXAMPLE,
-  IMAGE_PROMPT_LIST_JSON_SCHEMA,
   parseJsonModelOutput,
-} from "./json-output"
+} from "@/lib/json-output"
 export { NineRouterModel } from "./models/ninerouter-model"
 export { OpenAIModel } from "./models/openai-model"
 export { AIProvider } from "./provider"
 export type {
   AIMessage,
+  AIMessageContent,
+  AIMessageContentPart,
   AIMessageRole,
   AIModelConfig,
   AIProviderId,
+  AIImageUrlContentPart,
+  AITextContentPart,
   GenerateImageOptions,
   GenerateImageResult,
   GeneratedImage,
   GenerateTextOptions,
   GenerateTextResult,
+  ImageQuality,
   ImageSize,
   JsonSchemaResponseFormat,
+  ReferenceImageInput,
   ResolvedAIModelConfig,
-  StreamTextOptions,
-  TextStreamChunk,
   TokenUsage,
 } from "./types"

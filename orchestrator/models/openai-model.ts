@@ -1,4 +1,5 @@
-import OpenAI from "openai"
+import OpenAI, { toFile } from "openai"
+import type { ChatCompletionMessageParam } from "openai/resources/chat/completions"
 
 import { AIModelError } from "../errors"
 import { BaseAIModel } from "../base/base-model"
@@ -7,9 +8,8 @@ import type {
   GenerateImageResult,
   GenerateTextOptions,
   GenerateTextResult,
+  ImageQuality,
   ResolvedAIModelConfig,
-  StreamTextOptions,
-  TextStreamChunk,
 } from "../types"
 
 function resolveResponseFormat(options: GenerateTextOptions) {
@@ -31,6 +31,40 @@ function resolveResponseFormat(options: GenerateTextOptions) {
   return undefined
 }
 
+function extensionForContentType(contentType: string): string {
+  if (contentType.includes("png")) {
+    return "png"
+  }
+
+  if (contentType.includes("webp")) {
+    return "webp"
+  }
+
+  return "jpg"
+}
+
+function resolveGptImageQuality(
+  quality?: ImageQuality
+): "low" | "medium" | "high" | "auto" | "standard" {
+  if (quality === "hd" || quality === "high") {
+    return "high"
+  }
+
+  if (quality === "low") {
+    return "low"
+  }
+
+  if (quality === "auto") {
+    return "auto"
+  }
+
+  if (quality === "standard") {
+    return "standard"
+  }
+
+  return "medium"
+}
+
 export class OpenAIModel extends BaseAIModel {
   readonly provider = "openai" as const
 
@@ -48,7 +82,7 @@ export class OpenAIModel extends BaseAIModel {
     try {
       const response = await this.client.chat.completions.create({
         model: this.textModel,
-        messages: options.messages,
+        messages: options.messages as ChatCompletionMessageParam[],
         temperature: options.temperature,
         max_tokens: options.maxTokens,
         response_format: resolveResponseFormat(options),
@@ -70,53 +104,64 @@ export class OpenAIModel extends BaseAIModel {
     }
   }
 
-  async *streamText(
-    options: StreamTextOptions
-  ): AsyncGenerator<TextStreamChunk, void, unknown> {
+  async generateImage(options: GenerateImageOptions): Promise<GenerateImageResult> {
+    if (!options.referenceImage) {
+      throw new AIModelError(
+        "referenceImage is required for storybook image generation.",
+        this.provider
+      )
+    }
+
     try {
-      const stream = await this.client.chat.completions.create({
-        model: this.textModel,
-        messages: options.messages,
-        temperature: options.temperature,
-        max_tokens: options.maxTokens,
-        response_format: resolveResponseFormat(options),
-        stream: true,
-      })
-
-      for await (const chunk of stream) {
-        const text = chunk.choices[0]?.delta?.content
-
-        if (text) {
-          yield { text }
-        }
+      return await this.editImageWithReference(options)
+    } catch (error) {
+      if (error instanceof AIModelError) {
+        throw error
       }
 
-      yield { text: "", done: true }
-    } catch (error) {
-      throw new AIModelError("OpenAI text streaming failed.", this.provider, error)
+      throw new AIModelError("OpenAI image generation failed.", this.provider, error)
     }
   }
 
-  async generateImage(options: GenerateImageOptions): Promise<GenerateImageResult> {
-    try {
-      const response = await this.client.images.generate({
-        model: this.imageModel,
-        prompt: options.prompt,
-        size: options.size ?? "1024x1024",
-        quality: options.quality ?? "standard",
-        n: options.n ?? 1,
-      })
+  private async editImageWithReference(
+    options: GenerateImageOptions
+  ): Promise<GenerateImageResult> {
+    const reference = options.referenceImage
 
-      return {
-        images:
-          response.data?.map((image) => ({
-            url: image.url ?? undefined,
-            b64Json: image.b64_json ?? undefined,
-          })) ?? [],
-        raw: response,
-      }
-    } catch (error) {
-      throw new AIModelError("OpenAI image generation failed.", this.provider, error)
+    if (!reference) {
+      throw new AIModelError(
+        "referenceImage is required for image edits.",
+        this.provider
+      )
+    }
+
+    const extension = extensionForContentType(reference.contentType)
+    const imageFile = await toFile(
+      Buffer.from(reference.base64, "base64"),
+      `child-photo.${extension}`,
+      { type: reference.contentType }
+    )
+
+    const response = await this.client.images.edit({
+      model: this.imageModel,
+      image: imageFile,
+      prompt: options.prompt,
+      size: (options.size ?? "1024x1024") as
+        | "1024x1024"
+        | "1024x1536"
+        | "1536x1024"
+        | "auto",
+      quality: resolveGptImageQuality(options.quality),
+      n: options.n ?? 1,
+    })
+
+    return {
+      images:
+        response.data?.map((image) => ({
+          url: image.url ?? undefined,
+          b64Json: image.b64_json ?? undefined,
+        })) ?? [],
+      raw: response,
     }
   }
 }

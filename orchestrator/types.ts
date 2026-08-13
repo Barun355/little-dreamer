@@ -2,9 +2,26 @@ export type AIProviderId = "openai" | "ninerouter"
 
 export type AIMessageRole = "system" | "user" | "assistant"
 
+export type AITextContentPart = {
+  type: "text"
+  text: string
+}
+
+export type AIImageUrlContentPart = {
+  type: "image_url"
+  image_url: {
+    url: string
+    detail?: "auto" | "low" | "high"
+  }
+}
+
+export type AIMessageContentPart = AITextContentPart | AIImageUrlContentPart
+
+export type AIMessageContent = string | AIMessageContentPart[]
+
 export interface AIMessage {
   role: AIMessageRole
-  content: string
+  content: AIMessageContent
 }
 
 export interface TokenUsage {
@@ -33,25 +50,36 @@ export interface GenerateTextResult {
   raw?: unknown
 }
 
-export interface StreamTextOptions extends GenerateTextOptions {}
-
-export interface TextStreamChunk {
-  text: string
-  done?: boolean
-}
-
 export type ImageSize =
   | "256x256"
   | "512x512"
   | "1024x1024"
   | "1792x1024"
   | "1024x1792"
+  | "1536x1024"
+  | "1024x1536"
+  | "auto"
+
+export type ImageQuality =
+  | "standard"
+  | "hd"
+  | "low"
+  | "medium"
+  | "high"
+  | "auto"
+
+export type ReferenceImageInput = {
+  base64: string
+  contentType: string
+}
 
 export interface GenerateImageOptions {
   prompt: string
   size?: ImageSize
-  quality?: "standard" | "hd"
+  quality?: ImageQuality
   n?: number
+  /** Child photo (or other reference) for gpt-image edits. */
+  referenceImage?: ReferenceImageInput
 }
 
 export interface GeneratedImage {
