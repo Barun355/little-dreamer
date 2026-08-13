@@ -7,3 +7,4 @@ allowBuilds:
   '@prisma/engines': true
   prisma: true
   protobufjs: true
+  core-js: set this to true or false

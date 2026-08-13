@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   Bell,
   ChevronDown,
@@ -14,6 +14,7 @@ import {
 import {
   Avatar,
   AvatarFallback,
+  AvatarImage,
 } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -41,13 +42,31 @@ import {
 } from "@/components/ui/sidebar"
 import { StoryRecentList } from "@/features/story/components/story-recent-list"
 import type { StorybookSummary } from "@/features/story/types"
+import { authClient } from "@/lib/auth/client"
+
+export type DashboardUser = {
+  id: string
+  email: string
+  name: string | null
+  image: string | null
+}
 
 type DashboardSidebarProps = {
   stories: StorybookSummary[]
+  user: DashboardUser
 }
 
-export function DashboardSidebar({ stories }: DashboardSidebarProps) {
+export function DashboardSidebar({ stories, user }: DashboardSidebarProps) {
   const pathname = usePathname()
+  const router = useRouter()
+  const displayName = user.name?.trim() || user.email
+  const initials = getInitials(displayName)
+
+  async function handleSignOut() {
+    await authClient.signOut()
+    router.push("/")
+    router.refresh()
+  }
 
   return (
     <Sidebar collapsible="icon" variant="inset">
@@ -112,11 +131,16 @@ export function DashboardSidebar({ stories }: DashboardSidebarProps) {
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton size="lg">
                   <Avatar className="size-8">
-                    <AvatarFallback>AL</AvatarFallback>
+                    {user.image ? (
+                      <AvatarImage src={user.image} alt={displayName} />
+                    ) : null}
+                    <AvatarFallback>{initials}</AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col gap-0.5 leading-none">
-                    <span className="font-medium">Alex</span>
-                    <span className="text-xs text-muted-foreground">Guest</span>
+                    <span className="font-medium">{displayName}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {user.email}
+                    </span>
                   </div>
                   <ChevronDown className="ml-auto" />
                 </SidebarMenuButton>
@@ -128,7 +152,7 @@ export function DashboardSidebar({ stories }: DashboardSidebarProps) {
                   <Settings />
                   Settings
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut />
                   Sign out
                 </DropdownMenuItem>
@@ -141,4 +165,14 @@ export function DashboardSidebar({ stories }: DashboardSidebarProps) {
       <SidebarRail />
     </Sidebar>
   )
+}
+
+function getInitials(value: string) {
+  const parts = value.trim().split(/\s+/).filter(Boolean)
+
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+  }
+
+  return value.slice(0, 2).toUpperCase()
 }

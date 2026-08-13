@@ -8,17 +8,22 @@ import {
 import { Separator } from "@/components/ui/separator"
 import type { StorybookSummary } from "@/features/story/types"
 
-import { DashboardSidebar } from "./dashboard-sidebar"
+import { DashboardSidebar, type DashboardUser } from "./dashboard-sidebar"
 
 type DashboardShellProps = {
   children: React.ReactNode
   stories: StorybookSummary[]
+  user: DashboardUser
 }
 
-export function DashboardShell({ children, stories }: DashboardShellProps) {
+export function DashboardShell({
+  children,
+  stories,
+  user,
+}: DashboardShellProps) {
   return (
     <SidebarProvider>
-      <DashboardSidebar stories={stories} />
+      <DashboardSidebar user={user} stories={stories} />
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger />

@@ -3,7 +3,11 @@ import { ArrowRight, BookOpen, Gift, Star } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 
-export function LandingHero() {
+type LandingHeroProps = {
+  isSignedIn: boolean
+}
+
+export function LandingHero({ isSignedIn }: LandingHeroProps) {
   return (
     <section className="relative overflow-hidden px-6 pb-20 pt-16 sm:pb-28 sm:pt-24">
       <div
@@ -41,7 +45,7 @@ export function LandingHero() {
               size="lg"
               className="h-12 bg-violet-500 px-8 text-base text-white hover:bg-violet-400"
             >
-              <Link href="/dashboard">
+              <Link href={isSignedIn ? "/dashboard" : "/auth/sign-in"}>
                 Create Their Storybook
                 <ArrowRight className="size-4" />
               </Link>

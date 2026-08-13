@@ -1,4 +1,4 @@
-export type AIProviderId = "openai"
+export type AIProviderId = "openai" | "ninerouter"
 
 export type AIMessageRole = "system" | "user" | "assistant"
 
@@ -13,11 +13,18 @@ export interface TokenUsage {
   totalTokens?: number
 }
 
+export interface JsonSchemaResponseFormat {
+  name: string
+  schema: Record<string, unknown>
+  strict?: boolean
+}
+
 export interface GenerateTextOptions {
   messages: AIMessage[]
   temperature?: number
   maxTokens?: number
   jsonMode?: boolean
+  jsonSchema?: JsonSchemaResponseFormat
 }
 
 export interface GenerateTextResult {

@@ -12,8 +12,6 @@ import {
 import { getStorybookById } from "@/features/story/actions/get-storybook-by-id"
 import { StoryGeneratingPoller } from "@/features/story/components/story-generating-poller"
 import { StoryStatusBadge } from "@/features/story/components/story-status-badge"
-import { storybookResourcesSchema } from "@/types/schemas"
-import { safeParseOutput } from "@/lib/validation"
 
 type StoryDetailPageProps = {
   params: Promise<{ storyId: string }>
@@ -22,7 +20,8 @@ type StoryDetailPageProps = {
 export default async function StoryDetailPage({ params }: StoryDetailPageProps) {
   const { storyId } = await params
   const storybook = await getStorybookById(storyId)
-  const resources = safeParseOutput(storybookResourcesSchema, storybook.resources)
+  const generatedStory = storybook.resources?.story
+  const storyImages = storybook.resources?.story_images
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
@@ -39,7 +38,8 @@ export default async function StoryDetailPage({ params }: StoryDetailPageProps) 
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex flex-col gap-2">
               <CardTitle className="text-2xl">
-                {storybook.childName}&apos;s storybook
+                {generatedStory?.title ??
+                  `${storybook.childName}'s storybook`}
               </CardTitle>
               <CardDescription>
                 {storybook.theme?.title ?? "Personalized adventure"} · Age{" "}
@@ -60,20 +60,21 @@ export default async function StoryDetailPage({ params }: StoryDetailPageProps) 
           <div className="rounded-xl border bg-muted/20 p-4">
             <div className="mb-2 flex items-center gap-2 text-sm font-medium">
               <BookOpen />
-              Story preview
+              {generatedStory ? "Generated story" : "Theme preview"}
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              {storybook.theme?.baseStory ??
+              {generatedStory?.baseStory ??
+                storybook.theme?.baseStory ??
                 "Your personalized story will appear here once generation is complete."}
             </p>
           </div>
 
-          {resources?.story_images.frontCover ? (
+          {storyImages?.frontCover ? (
             <div className="flex flex-col gap-3">
               <div className="overflow-hidden rounded-xl border">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={resources.story_images.frontCover}
+                  src={storyImages.frontCover}
                   alt={`${storybook.childName}'s storybook front cover`}
                   className="aspect-square w-full object-cover"
                 />
@@ -81,15 +82,15 @@ export default async function StoryDetailPage({ params }: StoryDetailPageProps) 
             </div>
           ) : null}
 
-          {storybook.theme?.pages?.length ? (
+          {generatedStory?.pages.length ? (
             <div className="flex flex-col gap-3">
-              {storybook.theme.pages.map((page, index) => (
+              {generatedStory.pages.map((page, index) => (
                 <div key={page.pageNumber} className="rounded-xl border p-4">
-                  {resources?.story_images.stories[index] ? (
+                  {storyImages?.stories[index] ? (
                     <div className="mb-4 overflow-hidden rounded-lg border">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={resources.story_images.stories[index]}
+                        src={storyImages.stories[index]}
                         alt={`Illustration for page ${page.pageNumber}`}
                         className="aspect-square w-full object-cover"
                       />
@@ -104,11 +105,11 @@ export default async function StoryDetailPage({ params }: StoryDetailPageProps) 
             </div>
           ) : null}
 
-          {resources?.story_images.backCover ? (
+          {storyImages?.backCover ? (
             <div className="overflow-hidden rounded-xl border">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={resources.story_images.backCover}
+                src={storyImages.backCover}
                 alt={`${storybook.childName}'s storybook back cover`}
                 className="aspect-square w-full object-cover"
               />

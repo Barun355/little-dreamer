@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { storybookThemeSchema } from "@/types/schemas"
+import { storybookResourcesSchema, storybookThemeSchema } from "@/types/schemas"
 
 import { STORY_THEMES } from "./constants/themes"
 
@@ -85,7 +85,7 @@ export const storybookDetailSchema = z.object({
   childAge: z.number().int().min(1).max(12),
   photoUrl: z.string().nullable(),
   theme: storybookThemeSchema.nullable(),
-  resources: z.unknown().nullable(),
+  resources: storybookResourcesSchema.nullable(),
   status: storybookStatusSchema,
   createdAt: z.date(),
   updatedAt: z.date(),

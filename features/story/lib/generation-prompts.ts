@@ -11,24 +11,11 @@ export function buildStoryGenerationPrompt(params: {
 Theme title: ${params.theme.title}
 Theme direction: ${params.theme.baseStory}
 
-Return JSON with this exact shape:
-{
-  "title": "story title",
-  "baseStory": "one paragraph summary",
-  "pages": [
-    { "pageNumber": 1, "text": "page text" },
-    { "pageNumber": 2, "text": "page text" },
-    { "pageNumber": 3, "text": "page text" },
-    { "pageNumber": 4, "text": "page text" },
-    { "pageNumber": 5, "text": "page text" }
-  ]
-}
-
 Rules:
 - ${params.childName} must be the hero in every page.
 - Language must be warm, age-appropriate, and magical.
 - Each page should be 2-4 sentences.
-- Do not include markdown or extra keys.`
+- Provide exactly 5 pages numbered 1 through 5.`
 }
 
 export function buildImagePromptGenerationPrompt(params: {
@@ -47,19 +34,6 @@ Story summary: ${params.story.baseStory}
 
 Story pages:
 ${params.story.pages.map((page) => `Page ${page.pageNumber}: ${page.text}`).join("\n")}
-
-Return JSON with exactly 7 prompts in this shape:
-{
-  "prompts": [
-    { "slot": "frontCover", "prompt": "..." },
-    { "slot": "page1", "prompt": "..." },
-    { "slot": "page2", "prompt": "..." },
-    { "slot": "page3", "prompt": "..." },
-    { "slot": "page4", "prompt": "..." },
-    { "slot": "page5", "prompt": "..." },
-    { "slot": "backCover", "prompt": "..." }
-  ]
-}
 
 Rules for every prompt:
 - Describe ${params.childName} as the main character with the exact same face, hair, skin tone, and likeness as the reference photo.

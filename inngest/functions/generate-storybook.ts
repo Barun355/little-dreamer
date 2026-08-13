@@ -8,6 +8,14 @@ import {
 } from "@/features/story/lib/generation-prompts"
 import { storybookGenerationEventSchema } from "@/features/story/schemas"
 import {
+  buildStructuredJsonMessages,
+  GENERATED_STORY_EXAMPLE,
+  GENERATED_STORY_JSON_SCHEMA,
+  IMAGE_PROMPT_LIST_EXAMPLE,
+  IMAGE_PROMPT_LIST_JSON_SCHEMA,
+  parseJsonModelOutput,
+} from "@/orchestrator"
+import {
   orchestratorGenerateImage,
   orchestratorGenerateText,
 } from "@/inngest/lib/orchestrator-steps"
@@ -15,9 +23,9 @@ import { prisma } from "@/lib/db"
 import { uploadChildPhoto, uploadImageFromUrl, uploadStoryImage } from "@/lib/r2"
 import { parseInput, parseOutput } from "@/lib/validation"
 import {
-  generatedStorySchema,
+  completedStorybookResourcesSchema,
   imagePromptListSchema,
-  storybookResourcesSchema,
+  storybookStoryContentSchema,
 } from "@/types/schemas"
 
 import { inngest, STORYBOOK_GENERATION_REQUESTED } from "../client"
@@ -96,28 +104,24 @@ export const generateStorybookWorkflow = inngest.createFunction(
       "generate-story-content",
       orchestratorGenerateText,
       {
-        messages: [
-          {
-            role: "system",
-            content:
-              "You write personalized children's storybooks. Always respond with valid JSON only.",
-          },
-          {
-            role: "user",
-            content: buildStoryGenerationPrompt({
-              childName: payload.childName,
-              childAge: payload.childAge,
-              theme,
-            }),
-          },
-        ],
-        jsonMode: true,
+        messages: buildStructuredJsonMessages({
+          schemaName: GENERATED_STORY_JSON_SCHEMA.name,
+          taskDescription:
+            "Write a personalized five-page children's storybook as structured JSON.",
+          example: GENERATED_STORY_EXAMPLE,
+          userPrompt: buildStoryGenerationPrompt({
+            childName: payload.childName,
+            childAge: payload.childAge,
+            theme,
+          }),
+        }),
+        jsonSchema: GENERATED_STORY_JSON_SCHEMA,
       }
     )
 
     const story = parseOutput(
-      generatedStorySchema,
-      JSON.parse(storyResponse.text || "{}"),
+      storybookStoryContentSchema,
+      parseJsonModelOutput(storyResponse.text),
       "Story generation returned invalid JSON."
     )
 
@@ -125,10 +129,12 @@ export const generateStorybookWorkflow = inngest.createFunction(
       await prisma.storybook.update({
         where: { id: payload.storybookId },
         data: {
-          theme: {
-            title: story.title,
-            baseStory: story.baseStory,
-            pages: story.pages,
+          resources: {
+            story: {
+              title: story.title,
+              baseStory: story.baseStory,
+              pages: story.pages,
+            },
           },
         },
       })
@@ -138,30 +144,26 @@ export const generateStorybookWorkflow = inngest.createFunction(
       "generate-image-prompts",
       orchestratorGenerateText,
       {
-        messages: [
-          {
-            role: "system",
-            content:
-              "You create precise image-generation prompts for children's storybooks. Always respond with valid JSON only.",
-          },
-          {
-            role: "user",
-            content: buildImagePromptGenerationPrompt({
-              childName: payload.childName,
-              childAge: payload.childAge,
-              photoUrl,
-              theme,
-              story,
-            }),
-          },
-        ],
-        jsonMode: true,
+        messages: buildStructuredJsonMessages({
+          schemaName: IMAGE_PROMPT_LIST_JSON_SCHEMA.name,
+          taskDescription:
+            "Create seven precise image-generation prompts for a children's storybook as structured JSON.",
+          example: IMAGE_PROMPT_LIST_EXAMPLE,
+          userPrompt: buildImagePromptGenerationPrompt({
+            childName: payload.childName,
+            childAge: payload.childAge,
+            photoUrl,
+            theme,
+            story,
+          }),
+        }),
+        jsonSchema: IMAGE_PROMPT_LIST_JSON_SCHEMA,
       }
     )
 
     const promptPayload = parseOutput(
       imagePromptResponseSchema,
-      JSON.parse(promptResponse.text || "{}"),
+      parseJsonModelOutput(promptResponse.text),
       "Image prompt generation returned invalid JSON."
     )
 
@@ -206,7 +208,12 @@ export const generateStorybookWorkflow = inngest.createFunction(
       )
     )
 
-    const resources = parseOutput(storybookResourcesSchema, {
+    const resources = parseOutput(completedStorybookResourcesSchema, {
+      story: {
+        title: story.title,
+        baseStory: story.baseStory,
+        pages: story.pages,
+      },
       story_images: {
         frontCover: uploadedImages[0],
         backCover: uploadedImages[6],

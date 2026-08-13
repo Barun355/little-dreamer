@@ -3,7 +3,11 @@ import { ArrowRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 
-export function LandingCta() {
+type LandingCtaProps = {
+  isSignedIn: boolean
+}
+
+export function LandingCta({ isSignedIn }: LandingCtaProps) {
   return (
     <section className="px-6 pb-20 pt-4 sm:pb-28">
       <div className="mx-auto max-w-6xl">
@@ -27,7 +31,7 @@ export function LandingCta() {
               size="lg"
               className="mt-8 h-12 bg-violet-500 px-8 text-base text-white hover:bg-violet-400"
             >
-              <Link href="/dashboard">
+              <Link href={isSignedIn ? "/dashboard" : "/auth/sign-in"}>
                 Create Their Storybook
                 <ArrowRight className="size-4" />
               </Link>

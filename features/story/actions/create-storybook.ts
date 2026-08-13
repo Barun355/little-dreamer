@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
 import { inngest, STORYBOOK_GENERATION_REQUESTED } from "@/inngest/client"
+import { requireUser } from "@/lib/auth/session"
 import { createStorybookId } from "@/lib/id"
 import { prisma } from "@/lib/db"
 import { parseInput } from "@/lib/validation"
@@ -16,6 +17,7 @@ import {
 } from "../schemas"
 
 export async function createStorybook(formData: FormData) {
+  const user = await requireUser()
   const photo = formData.get("photo")
 
   const parsedForm = createStorybookFormSchema.safeParse({
@@ -56,6 +58,7 @@ export async function createStorybook(formData: FormData) {
   await prisma.storybook.create({
     data: {
       id: storybookId,
+      userId: user.id,
       childName: input.childName,
       childAge: input.childAge,
       theme: {

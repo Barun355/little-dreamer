@@ -11,9 +11,14 @@ const serverEnvSchema = z.object({
   OPENAI_API_KEY: z.string().min(1).optional(),
   OPENAI_TEXT_MODEL: z.string().default("gpt-4o-mini"),
   OPENAI_IMAGE_MODEL: z.string().default("dall-e-3"),
+  NINEROUTER_API_KEY: z.string().min(1).optional(),
+  NINEROUTER_BASE_URL: z.string().url().default("http://localhost:20128/v1"),
+  NINEROUTER_TEXT_MODEL: z.string().min(1).default("kr/claude-sonnet-4.5"),
   INNGEST_EVENT_KEY: z.string().optional(),
   INNGEST_SIGNING_KEY: z.string().optional(),
   INNGEST_DEV: z.string().optional(),
+  NEON_AUTH_BASE_URL: z.string().url(),
+  NEON_AUTH_COOKIE_SECRET: z.string().min(32),
 })
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>

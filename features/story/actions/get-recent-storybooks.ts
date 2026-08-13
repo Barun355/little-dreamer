@@ -1,5 +1,6 @@
 "use server"
 
+import { requireUser } from "@/lib/auth/session"
 import { prisma } from "@/lib/db"
 import { parseOutput } from "@/lib/validation"
 import { storybookThemeSchema } from "@/types/schemas"
@@ -20,7 +21,9 @@ function getThemeTitle(theme: unknown): string {
 }
 
 export async function getRecentStorybooks(): Promise<StorybookSummary[]> {
+  const user = await requireUser()
   const storybooks = await prisma.storybook.findMany({
+    where: { userId: user.id },
     orderBy: { updatedAt: "desc" },
     take: 20,
     select: {

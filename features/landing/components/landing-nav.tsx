@@ -3,7 +3,12 @@ import { Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 
-export function LandingNav() {
+type LandingNavProps = {
+  isSignedIn: boolean
+}
+
+export function LandingNav({ isSignedIn }: LandingNavProps) {
+  const entryHref = isSignedIn ? "/dashboard" : "/auth/sign-in"
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0a12]/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
@@ -27,13 +32,13 @@ export function LandingNav() {
             variant="ghost"
             className="text-white/80 hover:bg-white/10 hover:text-white"
           >
-            <Link href="/dashboard">Sign in</Link>
+            <Link href={entryHref}>{isSignedIn ? "Dashboard" : "Sign in"}</Link>
           </Button>
           <Button
             asChild
             className="hidden bg-violet-500 text-white hover:bg-violet-400 sm:inline-flex"
           >
-            <Link href="/dashboard">Create Their Storybook</Link>
+            <Link href={entryHref}>Create Their Storybook</Link>
           </Button>
         </nav>
       </div>

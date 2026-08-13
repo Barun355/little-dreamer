@@ -12,6 +12,25 @@ import type {
   TextStreamChunk,
 } from "../types"
 
+function resolveResponseFormat(options: GenerateTextOptions) {
+  if (options.jsonSchema) {
+    return {
+      type: "json_schema" as const,
+      json_schema: {
+        name: options.jsonSchema.name,
+        schema: options.jsonSchema.schema,
+        strict: options.jsonSchema.strict ?? true,
+      },
+    }
+  }
+
+  if (options.jsonMode) {
+    return { type: "json_object" as const }
+  }
+
+  return undefined
+}
+
 export class OpenAIModel extends BaseAIModel {
   readonly provider = "openai" as const
 
@@ -32,9 +51,7 @@ export class OpenAIModel extends BaseAIModel {
         messages: options.messages,
         temperature: options.temperature,
         max_tokens: options.maxTokens,
-        response_format: options.jsonMode
-          ? { type: "json_object" }
-          : undefined,
+        response_format: resolveResponseFormat(options),
       })
 
       return {
@@ -62,9 +79,7 @@ export class OpenAIModel extends BaseAIModel {
         messages: options.messages,
         temperature: options.temperature,
         max_tokens: options.maxTokens,
-        response_format: options.jsonMode
-          ? { type: "json_object" }
-          : undefined,
+        response_format: resolveResponseFormat(options),
         stream: true,
       })
 
