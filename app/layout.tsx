@@ -1,47 +1,18 @@
-import type { Metadata } from "next"
-import { Fraunces, Inter } from "next/font/google"
+import { Geist, Geist_Mono, Inter } from "next/font/google"
 
 import "./globals.css"
+import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/sonner"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { brand, hero } from "@/content/copy"
 
-/**
- * Fraunces for display — warm and slightly literary, carries "storybook"
- * without tipping into twee. Inter for body. Both variable, both subset,
- * both `display: swap` so text is never invisible while fonts load.
- */
-const fraunces = Fraunces({
+const inter = Inter({subsets:['latin'],variable:'--font-sans'})
+
+const fontMono = Geist_Mono({
   subsets: ["latin"],
-  variable: "--font-fraunces",
-  display: "swap",
-  axes: ["SOFT", "WONK", "opsz"],
+  variable: "--font-mono",
 })
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-})
-
-export const metadata: Metadata = {
-  title: {
-    default: `${brand.name} — ${brand.tagline}`,
-    template: `%s — ${brand.name}`,
-  },
-  description: hero.subhead,
-}
-
-/**
- * Root layout — deliberately provider-free.
- *
- * next-themes was removed: v1 ships light-only, `:root` already IS the light
- * palette, and a theme provider running `forcedTheme="light"` is client-side
- * weight that changes nothing on screen. It comes back the day a real dark
- * palette exists.
- *
- * QueryProvider and Toaster are likewise not mounted — nothing here fetches
- * server state or raises a toast. Both remain in the repo for the app phase.
- */
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -50,26 +21,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={cn(fraunces.variable, inter.variable, "font-sans antialiased")}
+      suppressHydrationWarning
+      className={cn("antialiased", fontMono.variable, "font-sans", inter.variable)}
     >
-      {/*
-        Browser extensions (Grammarly, ColorZilla and friends) inject
-        attributes onto <body> before React hydrates —
-        `data-gr-ext-installed`, `cz-shortcut-listen` and similar. React
-        reports that as a hydration mismatch even though the app rendered
-        identically on both sides.
-
-        Suppressing on <body> only: it silences the attribute diff on this
-        one element without hiding genuine mismatches in the tree below.
-      */}
-      <body suppressHydrationWarning>
-        <a
-          href="#main"
-          className="sr-only rounded-md bg-primary px-4 py-2 text-primary-foreground focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-100"
-        >
-          Skip to content
-        </a>
-        {children}
+      <body>
+        <ThemeProvider>
+          <TooltipProvider>
+            {children}
+            <Toaster richColors closeButton />
+          </TooltipProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

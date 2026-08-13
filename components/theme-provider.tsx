@@ -1,20 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { ThemeProvider as NextThemesProvider } from "next-themes"
+import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
-/**
- * Light-only for v1.
- *
- * The brand is explicitly warm cream; a dark theme is a real design project
- * rather than a token flip, so it is deferred (PHASE-1 §1.1). `forcedTheme`
- * keeps next-themes mounted — so switching it on later is a one-line change —
- * without shipping a half-built dark palette.
- *
- * The scaffold preset also bound a global "d" hotkey to toggle dark mode.
- * Removed: it does nothing under forcedTheme, and a page-wide single-key
- * handler is a poor citizen on a marketing page.
- */
 function ThemeProvider({
   children,
   ...props
@@ -22,13 +10,62 @@ function ThemeProvider({
   return (
     <NextThemesProvider
       attribute="class"
-      forcedTheme="light"
+      defaultTheme="system"
+      enableSystem
       disableTransitionOnChange
       {...props}
     >
+      <ThemeHotkey />
       {children}
     </NextThemesProvider>
   )
+}
+
+function isTypingTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+
+  return (
+    target.isContentEditable ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  )
+}
+
+function ThemeHotkey() {
+  const { resolvedTheme, setTheme } = useTheme()
+
+  React.useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented || event.repeat) {
+        return
+      }
+
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return
+      }
+
+      if (event.key.toLowerCase() !== "d") {
+        return
+      }
+
+      if (isTypingTarget(event.target)) {
+        return
+      }
+
+      setTheme(resolvedTheme === "dark" ? "light" : "dark")
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown)
+    }
+  }, [resolvedTheme, setTheme])
+
+  return null
 }
 
 export { ThemeProvider }

@@ -1,6 +1,6 @@
 import * as React from "react"
-import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
+import { Slot } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
@@ -26,10 +26,6 @@ const buttonVariants = cva(
         xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
         sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
         lg: "h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
-        // Marketing scale. The app-default h-8 is far too small for a landing
-        // page CTA, and this belongs in the design system rather than as
-        // repeated className overrides at every call site.
-        xl: "h-12 gap-2 rounded-xl px-6 text-body has-data-[icon=inline-end]:pr-5 has-data-[icon=inline-start]:pl-5 [&_svg:not([class*='size-'])]:size-5",
         icon: "size-8",
         "icon-xs":
           "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
@@ -49,29 +45,19 @@ function Button({
   className,
   variant = "default",
   size = "default",
-  nativeButton,
-  render,
+  asChild = false,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
-  /**
-   * Base UI assumes the rendered element is a native <button> unless told
-   * otherwise. When `render` supplies a link — `<Link href>` or `<a href>` —
-   * the output is an <a>, so leaving `nativeButton` at its default both logs
-   * a warning and gives the element the wrong semantics.
-   *
-   * Detected here rather than at each of the ten call sites: an element
-   * carrying an `href` is a link, whatever component produced it.
-   */
-  const rendersAnchor =
-    React.isValidElement(render) &&
-    (render.type === "a" ||
-      (render.props as { href?: unknown } | null)?.href !== undefined)
+}: React.ComponentProps<"button"> &
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean
+  }) {
+  const Comp = asChild ? Slot.Root : "button"
 
   return (
-    <ButtonPrimitive
+    <Comp
       data-slot="button"
-      render={render}
-      nativeButton={nativeButton ?? !rendersAnchor}
+      data-variant={variant}
+      data-size={size}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

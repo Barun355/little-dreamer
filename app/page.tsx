@@ -1,38 +1,13 @@
-import { Nav } from "@/components/sections/nav"
-import { Footer } from "@/components/sections/footer"
-import { Hero } from "@/components/sections/hero"
-import { TrustBar } from "@/components/sections/trust-bar"
-import { Core } from "@/components/sections/core"
-import { Proof } from "@/components/sections/proof"
-import { HowItWorks } from "@/components/sections/how-it-works"
-import { Themes } from "@/components/sections/themes"
-import { Sample } from "@/components/sections/sample"
-import { Testimonials } from "@/components/sections/testimonials"
-import { Pricing } from "@/components/sections/pricing"
-import { Safety } from "@/components/sections/safety"
-import { FinalCta } from "@/components/sections/final-cta"
+import type { Metadata } from "next"
 
-/** The landing page — all 13 sections. */
+import { LandingPage } from "@/features/landing"
+
+export const metadata: Metadata = {
+  title: "Little Dreamer — Give a Child a Story Where They Are the Hero",
+  description:
+    "Create a personalized storybook for a special child. Share their name, age, and photo — and give them a magical keepsake made just for them.",
+}
+
 export default function Page() {
-  return (
-    <>
-      <Nav />
-
-      <main id="main">
-        <Hero />
-        <TrustBar />
-        <Core />
-        <Proof />
-        <HowItWorks />
-        <Themes />
-        <Sample />
-        <Testimonials />
-        <Pricing />
-        <Safety />
-        <FinalCta />
-      </main>
-
-      <Footer />
-    </>
-  )
+  return <LandingPage />
 }
