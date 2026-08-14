@@ -22,6 +22,9 @@ const serverEnvSchema = z.object({
   INNGEST_DEV: z.string().optional(),
   NEON_AUTH_BASE_URL: z.string().url(),
   NEON_AUTH_COOKIE_SECRET: z.string().min(32),
+  RESEND_API_KEY: z.string().min(1).optional(),
+  RESEND_FROM: z.string().default("Little Dreamer <onboarding@resend.dev>"),
+  NEXT_PUBLIC_SITE_URL: z.string().url().default("http://localhost:3000"),
 })
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>

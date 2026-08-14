@@ -1,12 +1,13 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { redirect } from "next/navigation"
 
 import { inngest, STORYBOOK_GENERATION_REQUESTED } from "@/inngest/client"
 import { requireUser } from "@/lib/auth/session"
-import { createStorybookId } from "@/lib/id"
 import { prisma } from "@/lib/db"
+import { Prisma } from "@/lib/generated/prisma/client"
+import { createStorybookId } from "@/lib/id"
+import { assertCanGenerateStorybook } from "@/lib/subscription"
 import { parseInput } from "@/lib/validation"
 
 import { getStoryThemeById } from "../constants/themes"
@@ -61,19 +62,42 @@ export async function createStorybook(formData: FormData) {
     },
   })
 
-  await prisma.storybook.create({
-    data: {
-      id: storybookId,
-      userId: user.id,
-      childName: input.childName,
-      childAge: input.childAge,
-      theme: {
-        title: theme.title,
-        baseStory: theme.baseStory,
-      },
-      status: "GENERATING",
-    },
-  })
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await prisma.$transaction(
+        async (tx) => {
+          await assertCanGenerateStorybook(user.id, tx)
+
+          await tx.storybook.create({
+            data: {
+              id: storybookId,
+              userId: user.id,
+              childName: input.childName,
+              childAge: input.childAge,
+              theme: {
+                title: theme.title,
+                baseStory: theme.baseStory,
+              },
+              status: "GENERATING",
+            },
+          })
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        }
+      )
+      break
+    } catch (error) {
+      const shouldRetry =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2034" &&
+        attempt < 2
+
+      if (!shouldRetry) {
+        throw error
+      }
+    }
+  }
 
   await inngest.send({
     name: STORYBOOK_GENERATION_REQUESTED,
@@ -81,5 +105,5 @@ export async function createStorybook(formData: FormData) {
   })
 
   revalidatePath("/dashboard")
-  redirect(`/dashboard/story/${storybookId}`)
+  return { storybookId }
 }

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Sparkles } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { ZodError } from "zod"
 
@@ -36,6 +37,7 @@ type StoryCreateFormProps = {
 }
 
 export function StoryCreateForm({ title, description }: StoryCreateFormProps) {
+  const router = useRouter()
   const [childName, setChildName] = React.useState("")
   const [childAge, setChildAge] = React.useState("")
   const [themeId, setThemeId] = React.useState("")
@@ -73,10 +75,14 @@ export function StoryCreateForm({ title, description }: StoryCreateFormProps) {
       formData.set("themeId", themeId)
       formData.set("photo", photo as File)
 
-      await createStorybook(formData)
+      const { storybookId } = await createStorybook(formData)
+      toast.success("Storybook generation started.")
+      router.push(`/dashboard/story/${storybookId}`)
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Could not create the storybook."
+        error instanceof Error
+          ? error.message
+          : "Could not create the storybook."
       )
       setIsSubmitting(false)
     }
@@ -134,8 +140,8 @@ export function StoryCreateForm({ title, description }: StoryCreateFormProps) {
                   <FieldDescription>{errors.photo}</FieldDescription>
                 ) : (
                   <FieldDescription>
-                    Required. This photo helps keep the child&apos;s face consistent
-                    in every illustration.
+                    Required. This photo helps keep the child&apos;s face
+                    consistent in every illustration.
                   </FieldDescription>
                 )}
               </Field>
@@ -163,7 +169,11 @@ export function StoryCreateForm({ title, description }: StoryCreateFormProps) {
 
         <CardFooter className="justify-end border-t bg-muted/20 px-6 py-4">
           <Button type="submit" size="lg" disabled={isSubmitting || !photo}>
-            {isSubmitting ? <Spinner data-icon="inline-start" /> : <Sparkles data-icon="inline-start" />}
+            {isSubmitting ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <Sparkles data-icon="inline-start" />
+            )}
             Generate Storybook
           </Button>
         </CardFooter>

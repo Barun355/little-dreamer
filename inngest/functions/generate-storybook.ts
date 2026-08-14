@@ -4,12 +4,11 @@ import { StoryHarness } from "@/harness"
 import { StorybookRunner } from "@/harness/runner"
 import { loadPipelineConfig } from "@/inngest/lib/pipeline-config"
 import { prisma } from "@/lib/db"
+import { sendStorybookReadyEmail } from "@/lib/email/storybook-ready"
 import { uploadChildPhoto, uploadStoryImage } from "@/lib/r2"
+import { assertStorybookWithinDailyQuota } from "@/lib/subscription"
 import { parseInput, parseOutput } from "@/lib/validation"
-import type {
-  GenerateImageOptions,
-  ReferenceImageInput,
-} from "@/orchestrator"
+import type { GenerateImageOptions, ReferenceImageInput } from "@/orchestrator"
 import {
   completedStorybookResourcesSchema,
   type ImagePromptSlot,
@@ -44,7 +43,12 @@ type GenerateAndStoreImageResult = {
 
 async function markStorybookFailed(storybookId: string) {
   await prisma.storybook.updateMany({
-    where: { id: storybookId },
+    where: {
+      id: storybookId,
+      status: {
+        not: "COMPLETED",
+      },
+    },
     data: { status: "FAILED" },
   })
 }
@@ -65,6 +69,11 @@ export const generateStorybookWorkflow = inngest.createFunction(
   },
   async ({ event, step }) => {
     const payload = parseInput(storybookGenerationEventSchema, event.data)
+
+    await step.run("check-subscription-quota", async () => {
+      await assertStorybookWithinDailyQuota(payload.userId, payload.storybookId)
+    })
+
     const theme = getStoryThemeById(payload.themeId)
 
     if (!theme) {
@@ -98,7 +107,9 @@ export const generateStorybookWorkflow = inngest.createFunction(
       const image = result.images[0]
 
       if (!image) {
-        throw new Error(`Orchestrator did not return an image for ${input.slot}.`)
+        throw new Error(
+          `Orchestrator did not return an image for ${input.slot}.`
+        )
       }
 
       let buffer: Buffer
@@ -110,13 +121,17 @@ export const generateStorybookWorkflow = inngest.createFunction(
         const response = await fetch(image.url)
 
         if (!response.ok) {
-          throw new Error(`Failed to download generated image for ${input.slot}.`)
+          throw new Error(
+            `Failed to download generated image for ${input.slot}.`
+          )
         }
 
         buffer = Buffer.from(await response.arrayBuffer())
         contentType = response.headers.get("content-type") ?? "image/png"
       } else {
-        throw new Error(`Orchestrator returned no image URL or data for ${input.slot}.`)
+        throw new Error(
+          `Orchestrator returned no image URL or data for ${input.slot}.`
+        )
       }
 
       const url = await uploadStoryImage({
@@ -244,39 +259,62 @@ export const generateStorybookWorkflow = inngest.createFunction(
 
     // Build + validate resources inside a durable step so Finalization never
     // re-runs Zod against incomplete parallel image outputs.
-    const resources = await step.run("build-and-save-storybook-resources", async () => {
-      const built = parseOutput(completedStorybookResourcesSchema, {
-        story: {
-          title: storyBundle.title,
-          coverSubtitle: storyBundle.coverSubtitle,
-          baseStory: storyBundle.baseStory,
-          backCoverBlurb: storyBundle.backCoverBlurb,
-          pages: storyBundle.pages,
-          character: storyBundle.character,
-        },
-        story_images: {
-          
-          frontCover: storedImages[0]?.url,
-          backCover: storedImages[6]?.url,
-          stories: storedImages.slice(1, 6).map((item) => item.url),
-        },
+    const resources = await step.run(
+      "build-and-save-storybook-resources",
+      async () => {
+        const built = parseOutput(completedStorybookResourcesSchema, {
+          story: {
+            title: storyBundle.title,
+            coverSubtitle: storyBundle.coverSubtitle,
+            baseStory: storyBundle.baseStory,
+            backCoverBlurb: storyBundle.backCoverBlurb,
+            pages: storyBundle.pages,
+            character: storyBundle.character,
+          },
+          story_images: {
+            frontCover: storedImages[0]?.url,
+            backCover: storedImages[6]?.url,
+            stories: storedImages.slice(1, 6).map((item) => item.url),
+          },
+        })
+
+        await prisma.storybook.update({
+          where: { id: payload.storybookId },
+          data: {
+            resources: built,
+            status: "COMPLETED",
+          },
+        })
+
+        return built
+      }
+    )
+
+    const email = await step.run("send-storybook-ready-email", async () => {
+      const user = await prisma.user.findUnique({
+        where: { id: payload.userId },
+        select: { email: true },
       })
 
-      await prisma.storybook.update({
-        where: { id: payload.storybookId },
-        data: {
-          resources: built,
-          status: "COMPLETED",
-        },
-      })
+      if (!user) {
+        throw new Error(
+          "Could not find the storybook owner for email delivery."
+        )
+      }
 
-      return built
+      return sendStorybookReadyEmail({
+        to: user.email,
+        storybookId: payload.storybookId,
+        storyTitle: storyBundle.title,
+        childName: payload.childName,
+      })
     })
 
     return {
       storybookId: payload.storybookId,
       photoUrl,
       resources,
+      emailId: email?.id,
       status: "COMPLETED",
     }
   }

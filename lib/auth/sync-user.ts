@@ -1,4 +1,3 @@
-import { Prisma } from "@/lib/generated/prisma/client"
 import { prisma } from "@/lib/db"
 import { ensureUserStorageLayout } from "@/lib/r2"
 
@@ -48,6 +47,9 @@ export async function syncUser(input: SyncUserInput) {
         image: input.image ?? null,
         username,
         role: "USER",
+        subscription: {
+          storybooksPerDay: 1,
+        },
       },
     })
 
