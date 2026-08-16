@@ -10,18 +10,24 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { getStorybookById } from "@/features/story/actions/get-storybook-by-id"
+import { StoryDownloadButton } from "@/features/story/components/story-download-button"
 import { StoryGeneratingPoller } from "@/features/story/components/story-generating-poller"
 import { StoryStatusBadge } from "@/features/story/components/story-status-badge"
+import { requireUser } from "@/lib/auth/session"
 
 type StoryDetailPageProps = {
   params: Promise<{ storyId: string }>
 }
 
-export default async function StoryDetailPage({ params }: StoryDetailPageProps) {
+export default async function StoryDetailPage({
+  params,
+}: StoryDetailPageProps) {
   const { storyId } = await params
   const storybook = await getStorybookById(storyId)
   const generatedStory = storybook.resources?.story
   const storyImages = storybook.resources?.story_images
+
+  const { id: userId } = await requireUser()
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
@@ -38,15 +44,19 @@ export default async function StoryDetailPage({ params }: StoryDetailPageProps) 
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex flex-col gap-2">
               <CardTitle className="text-2xl">
-                {generatedStory?.title ??
-                  `${storybook.childName}'s storybook`}
+                {generatedStory?.title ?? `${storybook.childName}'s storybook`}
               </CardTitle>
               <CardDescription>
                 {storybook.theme?.title ?? "Personalized adventure"} · Age{" "}
                 {storybook.childAge}
               </CardDescription>
             </div>
-            <StoryStatusBadge status={storybook.status} />
+            <div className="flex flex-wrap items-center gap-2">
+              {storybook.status === "COMPLETED" && storyImages ? (
+                <StoryDownloadButton storybookId={storybook.id} userId={userId} />
+              ) : null}
+              <StoryStatusBadge status={storybook.status} />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -101,7 +111,7 @@ export default async function StoryDetailPage({ params }: StoryDetailPageProps) 
                       />
                     </div>
                   ) : null}
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                     Page {page.pageNumber}
                   </p>
                   <p className="text-sm leading-relaxed">{page.text}</p>
